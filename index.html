@@ -1,0 +1,4038 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>點名系統 v1.2</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body {
+            background-color: #f0f2f5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .stat-card {
+            background: #fff;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .class-header {
+            background: linear-gradient(45deg, #2193b0, #6dd5ed);
+            color: white;
+            border-radius: 10px 10px 0 0;
+            padding: 15px;
+            font-weight: bold;
+        }
+
+        .floating-action {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 24px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+        }
+
+        .custom-status-tag {
+            margin-right: 5px;
+            margin-bottom: 5px;
+            display: inline-block;
+        }
+
+        .nav-pills .nav-link {
+            border-radius: 20px;
+            margin-right: 5px;
+            color: #555;
+            background: #fff;
+            border: 1px solid #ddd;
+            word-break: keep-all;
+        }
+
+        .nav-pills .nav-link.active {
+            background-color: #0d6efd;
+            color: white;
+            border-color: #0d6efd;
+        }
+
+        .nav-scroller {
+            overflow-x: auto;
+            white-space: nowrap;
+            padding-bottom: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .class-header {
+                border-radius: 12px 12px 0 0;
+            }
+
+            /* Table styles removed to match desktop view */
+        }
+
+        /* New Scroll Container for Mobile Tabs */
+        .scroll-container {
+            display: flex;
+            overflow-x: auto;
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+            gap: 8px;
+        }
+
+        .scroll-container::-webkit-scrollbar {
+            height: 4px;
+        }
+
+        .scroll-container::-webkit-scrollbar-thumb {
+            background-color: #ccc;
+            border-radius: 4px;
+        }
+
+        .border-dashed-start {
+            border-left: 2px dashed #dee2e6;
+        }
+
+        .na-column {
+            min-width: 150px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 8px;
+        }
+
+        /* Header Optimization */
+        .header-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 576px) {
+            .header-top {
+                flex-direction: column;
+                align-items: flex-start !important;
+            }
+
+            .header-actions {
+                width: 100%;
+                justify-content: space-between;
+                margin-top: 10px;
+            }
+
+            .header-actions .btn-group,
+            .header-actions .btn {
+                flex: 1;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-light">
+    <div class="container py-3" style="max-width: 1000px;">
+        <!-- Top Bar -->
+        <div class="d-flex justify-content-between align-items-center mb-3 header-top">
+            <div class="d-flex align-items-center">
+                <div class="dropdown me-2">
+                    <button class="btn btn-dark dropdown-toggle fw-bold fs-4 border-0" type="button"
+                        id="squadronSelectorBtn" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-shield-shaded me-2"></i><span id="currentSquadronDisplay">一大一中</span>
+                    </button>
+                    <ul class="dropdown-menu shadow" style="max-height: 80vh; overflow-y: auto;">
+                        <li><a class="dropdown-item fw-bold bg-light" href="#" onclick="switchSquadron('一大隊')">一大隊
+                                (顯示全部)</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="switchSquadron('一大隊大隊部')">一大隊大隊部</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="switchSquadron('一大一中')">一大一中</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="switchSquadron('一大二中')">一大二中</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="switchSquadron('一大三中')">一大三中</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="switchSquadron('一大四中')">一大四中</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="switchSquadron('一大五中')">一大五中</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="switchSquadron('一大六中')">一大六中</a></li>
+                        <li>
+                            <hr class="dropdown-divider">
+                        </li>
+                        <li><a class="dropdown-item fw-bold bg-light" href="#" onclick="switchSquadron('二大隊')">二大隊
+                                (顯示全部)</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="switchSquadron('二大隊大隊部')">二大隊大隊部</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="switchSquadron('二大一中')">二大一中</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="switchSquadron('二大二中')">二大二中</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="switchSquadron('二大三中')">二大三中</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="switchSquadron('二大四中')">二大四中</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="switchSquadron('二大五中')">二大五中</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="switchSquadron('二大六中')">二大六中</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="header-actions">
+                <!-- Right Side: Settings & Add -->
+                <div class="d-flex align-items-center flex-wrap">
+                    <button id="adminLoginBtn" class="btn btn-outline-primary me-1 me-md-2" onclick="showAdminLogin()"
+                        title="管理員登入">
+                        <i class="bi bi-key-fill"></i>
+                    </button>
+                    <div id="userInfoDisplay" class="d-none align-items-center me-1 me-md-2">
+                        <!-- Notification Bell (Hidden by default) -->
+                        <button id="notificationBtn" class="btn btn-outline-warning position-relative me-2 d-none"
+                            onclick="showApprovalModal()">
+                            <i class="bi bi-bell-fill"></i>
+                            <span id="notificationBadge"
+                                class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none">
+                                0
+                                <span class="visually-hidden">unread messages</span>
+                            </span>
+                        </button>
+
+                        <!-- User Dropdown -->
+                        <div class="dropdown">
+                            <button class="btn btn-outline-primary dropdown-toggle fw-bold" type="button"
+                                id="userMenuBtn" data-bs-toggle="dropdown">
+                                <span id="userNameDisplay"></span>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="#" data-bs-toggle="modal"
+                                        data-bs-target="#changePasswordModal"><i class="bi bi-key me-2"></i>更改密碼</a>
+                                </li>
+                                <li><a class="dropdown-item" href="#" onclick="openChangeDormModal()"><i
+                                            class="bi bi-house-door me-2"></i>更改寢室別與床位</a>
+                                </li>
+                                <li><a class="dropdown-item d-none" id="adminManageLink" href="#"
+                                        onclick="showAdminDashboard()"><i class="bi bi-people-fill me-2"></i>人員權限管理</a>
+                                </li>
+                                <li><a class="dropdown-item d-none" id="exportDormLink" href="#"
+                                        onclick="openExportDormModal()"><i
+                                            class="bi bi-file-earmark-excel me-2 text-success"></i>匯出寢室資料</a>
+                                </li>
+                                <li>
+                                    <hr class="dropdown-divider">
+                                </li>
+                                <li><a class="dropdown-item text-danger" href="#" onclick="logout()"><i
+                                            class="bi bi-box-arrow-right me-2"></i>登出</a></li>
+                            </ul>
+                        </div>
+                    </div>
+
+
+
+                    <div class="btn-group me-1 me-md-2" role="group">
+                        <button class="btn btn-outline-primary px-2 px-md-3 text-nowrap"
+                            onclick="setGroupBy('squadron')">依中隊</button>
+                        <button class="btn btn-outline-primary px-2 px-md-3 text-nowrap"
+                            onclick="setGroupBy('class')">依班級</button>
+                        <button class="btn btn-outline-primary px-2 px-md-3 text-nowrap"
+                            onclick="setGroupBy('group')">依組別</button>
+                    </div>
+
+                    <button id="addStudentBtn" class="btn btn-outline-primary me-1 me-md-2"
+                        onclick="showAddStudentModal()">
+                        <i class="bi bi-person-plus-fill me-1"></i><span class="d-none d-sm-inline">新增</span>
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="openSettingsModal()">
+                        <i class="bi bi-gear-fill"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Week Tabs (Scrollable) -->
+        <div id="weekTabs" class="scroll-container mb-3">
+            <!-- JS Generated -->
+        </div>
+
+        <!-- Session Tabs (Scrollable) -->
+        <div id="sessionTabs" class="scroll-container mb-3">
+            <!-- JS Generated -->
+        </div>
+
+        <!-- Search Bar -->
+        <div class="row mb-3 gx-2 align-items-center">
+            <div class="col">
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                    <input type="search" id="searchInput" class="form-control border-start-0"
+                        placeholder="搜尋姓名、班級或組別 (按 Enter 新增篩選)" onkeyup="handleSearchInput(event)"
+                        oninput="renderAll()">
+                </div>
+                <div id="searchTagsContainer" class="d-flex flex-wrap gap-2 mt-2"></div>
+            </div>
+        </div>
+        <div class="row mb-4" style="position: relative; z-index: 10;">
+            <div class="col-12">
+                <div class="stat-card border-start border-5 border-primary">
+                    <div class="row mb-3 align-items-center">
+                        <div class="col-12 d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center flex-grow-1">
+                                <h5 class="mb-0 d-flex align-items-center py-1 text-nowrap">
+                                    總覽 <small class="text-muted mx-2" id="currentSessionLabel"></small>
+                                </h5>
+                            </div>
+
+                            <div class="d-flex flex-column gap-2 ms-2">
+                                <button class="btn btn-outline-primary btn-sm text-nowrap" onclick="copyGlobalReport()">
+                                    <i class="bi bi-clipboard"></i> 複製總覽
+                                </button>
+                                <button class="btn btn-outline-primary btn-sm text-nowrap"
+                                    onclick="openQuickStatusModal()">
+                                    <i class="bi bi-lightning-fill"></i> 快速差勤
+                                </button>
+                                <div id="statusOverviewTags" class="w-100 mt-1">
+                                    <!-- Status Overview dropdown will render here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-stretch overflow-hidden w-100" id="globalStatsPanel">
+                        <div id="statusStatsSection" class="flex-grow-1 d-flex gap-4">
+                            <span class="spinner-border spinner-border-sm" role="status"></span> 載入統計中...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+
+        <div id="classContainer" class="row g-4">
+            <div class="col-12 text-center py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2 text-muted">連線中...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal fade" id="addStudentModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">新增人員</h5>
+                    <button type="button" class="btn-primary btn-sm ms-auto me-2 btn" data-bs-toggle="modal"
+                        data-bs-target="#batchAddModal">批量新增</button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <div class="form-floating">
+                                <select id="inputSquadron" class="form-select">
+                                    <optgroup label="一大隊">
+                                        <option value="一大一中">一大一中</option>
+                                        <option value="一大二中">一大二中</option>
+                                        <option value="一大三中">一大三中</option>
+                                        <option value="一大四中">一大四中</option>
+                                        <option value="一大五中">一大五中</option>
+                                        <option value="一大六中">一大六中</option>
+                                    </optgroup>
+                                    <optgroup label="二大隊">
+                                        <option value="二大一中">二大一中</option>
+                                        <option value="二大二中">二大二中</option>
+                                        <option value="二大三中">二大三中</option>
+                                        <option value="二大四中">二大四中</option>
+                                        <option value="二大五中">二大五中</option>
+                                        <option value="二大六中">二大六中</option>
+                                    </optgroup>
+                                </select>
+                                <label for="inputSquadron">所屬中隊</label>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="form-floating"><input type="text" id="inputClass" class="form-control"
+                                    placeholder="班級"><label for="inputClass">班級 (例: 01班)</label></div>
+                        </div>
+                        <div class="col-6">
+                            <div class="form-floating"><input type="text" id="inputGroup" class="form-control"
+                                    placeholder="組別"><label for="inputGroup">組別 (例: A組)</label></div>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-floating"><input type="text" id="inputName" class="form-control"
+                                    placeholder="姓名"><label for="inputName">姓名</label></div>
+                        </div>
+                        <div class="col-12 text-end">
+                            <button onclick="addStudent()" class="btn btn-primary btn-lg w-100 shadow-sm"><i
+                                    class="bi bi-plus-lg"></i> 確定新增</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="settingsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">差勤狀態設定</h5><button type="button" class="btn-close"
+                        data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">設定對象</label>
+                        <select id="settingTargetScope" class="form-select" onchange="renderStatusSettings()">
+                            <!-- Populated via JS -->
+                        </select>
+                    </div>
+                    <div id="addStatusContainer" class="input-group mb-3">
+                        <input type="text" id="newStatusInput" class="form-control" placeholder="輸入新狀態名稱">
+                        <button class="btn btn-primary" onclick="addNewStatusType()">新增</button>
+                    </div>
+                    <hr>
+                    <h6>目前可用狀態:</h6>
+                    <div id="statusListContainer" class="d-flex flex-wrap"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="batchAddModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">批量新增學生</h5><button type="button" class="btn-close"
+                        data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info small">格式：<strong>中隊 班級 組別 姓名</strong> (中間空白)<br>範例：<br>一大一中 03班 A組
+                        王小明<br>(若只輸入三欄，則預設為目前所在中隊)
+                    </div>
+                    <textarea id="batchInput" class="form-control" rows="10" placeholder="一大一中 03班 A組 王小明"></textarea>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-secondary"
+                        data-bs-dismiss="modal">取消</button><button type="button" class="btn btn-primary"
+                        onclick="batchAddStudents()">開始匯入</button></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Modal (For Students) -->
+    <div class="modal fade" id="loginModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="loginModalTitle">登入</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="loginTargetName" class="fw-bold text-center fs-5 mb-3"></p>
+                    <input type="password" id="loginPassword" class="form-control text-center mb-3"
+                        placeholder="請輸入密碼 (預設0000)" onkeydown="if(event.key === 'Enter') performLogin()">
+                    <p id="loginError" class="text-danger small text-center mb-0"></p>
+                </div>
+                <div class="modal-footer justify-content-center">
+                    <button type="button" class="btn btn-primary w-100" onclick="performLogin()">登入</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Login Modal -->
+    <div class="modal fade" id="adminLoginModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title"><i class="bi bi-shield-lock-fill me-2"></i>管理員登入</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <input type="text" id="adminUsername" class="form-control" placeholder="帳號"
+                            onkeydown="if(event.key === 'Enter') document.getElementById('adminPassword').focus()">
+                    </div>
+                    <div class="mb-3">
+                        <input type="password" id="adminPassword" class="form-control" placeholder="密碼"
+                            onkeydown="if(event.key === 'Enter') performAdminLogin()">
+                    </div>
+                    <p id="adminLoginError" class="text-danger small text-center mb-0"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-dark w-100" onclick="performAdminLogin()">登入</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div class="modal fade" id="changePasswordModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">修改密碼</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">舊密碼</label>
+                        <input type="password" id="oldPass" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">新密碼</label>
+                        <input type="password" id="newPass" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">確認新密碼</label>
+                        <input type="password" id="confirmPass" class="form-control">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" onclick="submitChangePassword()">確認修改</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Role Config Modal -->
+        <div class="modal fade" id="roleConfigModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header bg-info text-dark">
+                        <h5 class="modal-title fw-bold">權限詳細設定</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" id="configTargetId">
+                        <input type="hidden" id="configTargetRole">
+
+                        <p id="configTargetName" class="fw-bold mb-3"></p>
+
+                        <!-- Battalion Admin Config -->
+                        <div id="battalionConfig" class="role-config-section d-none">
+                            <label class="form-label">管理大隊</label>
+                            <select id="configBattalion" class="form-select">
+                                <option value="一大隊">一大隊</option>
+                                <option value="二大隊">二大隊</option>
+                            </select>
+                        </div>
+
+                        <!-- District Admin Config -->
+                        <div id="districtConfig" class="role-config-section d-none">
+                            <label class="form-label">管理班級 (可多選)</label>
+                            <div id="configClassList" class="border rounded p-2"
+                                style="max-height: 200px; overflow-y: auto;">
+                                <!-- Checkboxes populated via JS -->
+                            </div>
+                        </div>
+
+                        <!-- Squadron Admin / Duty Class (Just info) -->
+                        <div id="squadronConfig" class="role-config-section d-none">
+                            <div class="alert alert-warning small">
+                                此角色將自動綁定該員所屬的中隊：<span id="configSquadronDisplay" class="fw-bold"></span>
+                                <br>若要變更管理中隊，請直接修改該員的「所屬中隊」欄位。
+                            </div>
+                        </div>
+
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="button" class="btn btn-primary" onclick="saveRoleConfig()">確認儲存</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Dashboard Modal -->
+        <div class="modal fade" id="adminDashboardModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered modal-xl">
+                <div class="modal-content">
+                    <div class="modal-header bg-dark text-white">
+                        <h5 class="modal-title"><i class="bi bi-shield-lock-fill me-2"></i>人員權限管理</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-2">
+                        <div class="d-flex gap-2">
+                            <div class="input-group">
+                                <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
+                                <input type="text" id="adminUserSearch" class="form-control border-start-0"
+                                    placeholder="搜尋姓名、班級、組別或權限..." onkeyup="renderAdminUserList()">
+                            </div>
+                            <button id="deleteAllBtn" class="btn btn-danger text-nowrap d-none"
+                                onclick="deleteAllUsers()">
+                                <i class="bi bi-trash-fill me-1"></i>全部刪除
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>姓名</th>
+                                    <th>班級 / 組別</th>
+                                    <th>權限角色</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="adminUserListBody">
+                                <!-- JS Generated -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Modal -->
+    <div class="modal fade" id="exportModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold" id="exportModalTitle"><i class="bi bi-share-fill me-2"></i>匯出點名單
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="exportForm">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">選擇日期：</label>
+                            <select class="form-select" id="exportDaySelect">
+                                <!-- Options populated via JS -->
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">選擇時段 (可多選)：</label>
+                            <div class="d-flex flex-wrap gap-2" id="exportSessionChecks">
+                                <!-- Checkboxes populated via JS -->
+                            </div>
+                        </div>
+                        <input type="hidden" id="exportTargetType" value="">
+                        <input type="hidden" id="exportTargetValue" value="">
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="executeExport()">
+                        <i class="bi bi-clipboard me-1"></i> 確認複製
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Approval Modal -->
+    <div class="modal fade" id="approvalModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-clipboard-check me-2"></i>審核申請</h5>
+                    <select id="approvalClassFilter" class="form-select form-select-sm ms-3" style="max-width: 150px;"
+                        onchange="refreshApprovalModal()">
+                        <option value="all">顯示全部</option>
+                        <!-- Options populated via JS -->
+                    </select>
+                    <button id="historyBtn" class="btn btn-outline-dark btn-sm ms-2"
+                        onclick="showApprovalHistoryModal()" title="查看審核紀錄">
+                        <i class="bi bi-clock-history"></i> 紀錄
+                    </button>
+                    <div class="ms-auto me-2">
+                        <button class="btn btn-success btn-sm me-1"
+                            onclick="batchHandleRequests('approve')">全部批准</button>
+                        <button class="btn btn-danger btn-sm" onclick="batchHandleRequests('reject')">全部駁回</button>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div id="approvalList" class="list-group list-group-flush">
+                        <!-- JS Generated Requests -->
+                        <div class="text-center p-4 text-muted">目前沒有待審核的申請</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <!-- Approval History Modal -->
+    <div class="modal fade" id="approvalHistoryModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-secondary text-white">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-clock-history me-2"></i>審核紀錄</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div id="approvalHistoryList" class="list-group list-group-flush">
+                        <div class="text-center p-4 text-muted">載入中...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, query, setDoc, getDocs, getDoc, deleteField, arrayUnion, arrayRemove, orderBy, limit, serverTimestamp, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDfAu3HoMEqtYwOg1_P0qNOOJye2dKhw0I",
+            authDomain: "airforce-5b199.firebaseapp.com",
+            projectId: "airforce-5b199",
+            storageBucket: "airforce-5b199.firebasestorage.app",
+            messagingSenderId: "433246436314",
+            appId: "1:433246436314:web:7db072cd7c01c665c61ee3",
+            measurementId: "G-LK50GN8KCF"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const studentsRef = collection(db, "students");
+        const requestsRef = collection(db, "requests");
+        const configRef = doc(db, "settings", "globalConfig");
+
+        // Real-time listener for Settings
+        onSnapshot(configRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                if (data.statuses && Array.isArray(data.statuses)) {
+                    // Update Cache
+                    statusConfigCache["global"] = data.statuses;
+                    // Update currentStatuses
+                    currentStatuses = data.statuses;
+                    console.log("Synced statuses:", currentStatuses);
+
+                    // Re-render Settings if open
+                    renderStatusSettings();
+                    // Re-render Global Stats to reflect potential status name changes
+                    renderAll();
+                }
+            } else {
+                console.log("Config doc missing, using defaults");
+            }
+        }, (error) => {
+            console.error("Snapshot Listener Error:", error);
+        });
+
+
+        const sessions = ["早點名", "早上上餐廳", "0740集合", "中午上餐廳", "1320集合", "晚上上餐廳", "晚自習", "晚點名"];
+        const days = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"];
+
+        let currentSession = sessions[0];
+        let currentDay = days[0];
+        let currentGroupMode = "class";
+        let currentSquadron = "一大一中";
+
+        // Status Configuration
+        // Default global fallback
+        const DEFAULT_STATUSES = ["實到", "遲到", "缺席", "病假", "事假", "公假"];
+        let currentStatuses = [...DEFAULT_STATUSES];
+
+        // Cache for status configs: { "global": [...], "一大一中": [...], ... }
+        let statusConfigCache = {
+            "global": [...DEFAULT_STATUSES]
+        };
+
+        // Helper: Get status list for a specific squadron, falling back to global
+        function getStatusList(squadronName) {
+            if (squadronName && statusConfigCache[squadronName]) {
+                return statusConfigCache[squadronName];
+            }
+            return statusConfigCache["global"] || DEFAULT_STATUSES;
+        }
+
+        // Helper: Get configuration scope for current user (for settings modal)
+        function getEditableStatusScopes() {
+            if (!currentUser) return [];
+            const role = currentUser.role;
+            const scopes = [];
+
+            if (role === 'super_admin' || role === 'general_admin') {
+                scopes.push({ val: 'global', label: '全域預設' });
+                // Add all squadrons
+                squadronOrder.forEach(sq => scopes.push({ val: sq, label: sq }));
+            } else if (role === 'battalion_admin' && currentUser.managedBattalion) {
+                // Add all in battalion
+                squadronOrder.filter(sq => getBattalionFromSquadron(sq) === currentUser.managedBattalion)
+                    .forEach(sq => scopes.push({ val: sq, label: sq }));
+            } else if (['squadron_admin', 'duty_class', 'class_admin'].includes(role)) {
+                // User allowed class_admin to edit their squadron settings too
+                if (currentUser.squadron) {
+                    scopes.push({ val: currentUser.squadron, label: currentUser.squadron });
+                }
+            }
+            return scopes;
+        }
+
+        // 3-Level Hierarchy
+        const battalionStructure = {
+            "一大隊": ["一大隊大隊部", "一大一中", "一大二中", "一大三中", "一大四中", "一大五中", "一大六中"],
+            "二大隊": ["二大隊大隊部", "二大一中", "二大二中", "二大三中", "二大四中", "二大五中", "二大六中"]
+        };
+
+        // Flatten for sorting
+        const squadronOrder = [
+            ...battalionStructure["一大隊"],
+            ...battalionStructure["二大隊"]
+        ];
+
+        // Permission & Role Definitions
+        const ROLE_DEFS = {
+            super_admin: { label: "超級管理員", type: "system" },
+            general_admin: { label: "值星官", type: "system" }, // Global execution
+            battalion_admin: { label: "大隊幹部", type: "battalion" }, // Manage specific battalion
+            squadron_admin: { label: "中隊幹部", type: "squadron" }, // Manage specific squadron
+            duty_class: { label: "值星班", type: "squadron" }, // Manage specific squadron
+            district_admin: { label: "實習區隊長", type: "district" }, // Manage specific classes
+            class_admin: { label: "實習幹部", type: "class" },
+            group_admin: { label: "組別負責人", type: "group" },
+            student: { label: "學生", type: "personal" }
+        };
+
+        function getBattalionFromSquadron(sq) {
+            if (!sq) return null;
+            if (battalionStructure["一大隊"].includes(sq)) return "一大隊";
+            if (battalionStructure["二大隊"].includes(sq)) return "二大隊";
+            return null;
+        }
+
+
+
+
+        // Level 3: Classes & Groups (Standardized across all squadrons)
+        const classOrder = [
+            "01班", "02班", "03班", "04班", "05班", "06班",
+            "07班", "08班", "09班", "10班", "11班", "12班",
+            "中隊部", "參謀", "區隊部"
+        ];
+
+        const groupOrder = [
+            "115一般組", "115結構組", "115發修組", "115航設組",
+            "116一般組", "116結構組", "116發修組", "116航設組",
+            "專軍"
+        ];
+
+        let studentsData = [];
+        let pendingRequests = []; // Store active requests
+
+        let currentUser = null; // { id, name, role, class, group }
+        // Check session storage
+        try {
+            const storedUser = sessionStorage.getItem('currentUser');
+            if (storedUser) {
+                currentUser = JSON.parse(storedUser);
+            }
+        } catch (e) {
+            console.error("Session load error", e);
+        }
+
+        // 初始化
+        initWeekTabs();
+        initSessionTabs();
+
+        // 功能: 複製
+        function copyToClipboard(text) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text)
+                    .then(() => alert("已複製到剪貼簿！"))
+                    .catch(err => fallbackCopyTextToClipboard(text));
+            } else {
+                fallbackCopyTextToClipboard(text);
+            }
+        }
+
+        function fallbackCopyTextToClipboard(text) {
+            var textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.top = "0";
+            textArea.style.left = "0";
+            textArea.style.position = "fixed";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                var successful = document.execCommand('copy');
+                var msg = successful ? '已複製到剪貼簿！' : '複製失敗';
+                alert(msg);
+            } catch (err) {
+                console.error('Fallback: Oops, unable to copy', err);
+                alert("複製失敗 (瀏覽器不支援)");
+            }
+            document.body.removeChild(textArea);
+        }
+
+        // Helper to strip HTML from status (Robust & Recursive Version)
+        function stripStatusHtml(status) {
+            if (!status) return "";
+            let s = status;
+
+            // 1. Recursive Unescape (Handle double encoding &amp;lt;)
+            let maxLoop = 5;
+            while (s.includes('&') && maxLoop > 0) {
+                const temp = document.createElement('div');
+                temp.innerHTML = s;
+                s = temp.textContent || temp.innerText || "";
+                maxLoop--;
+            }
+
+            // 2. Regex to remove standard and malformed HTML tags
+            // Matches < or </, followed by optional whitespace, followed by tag name
+            return s.replace(/<\/?\s*[a-z][^>]*>/gi, '').trim();
+        }
+
+        // Export Modal Logic
+        window.openExportModal = (type, value, title) => {
+            const modalTitle = document.getElementById('exportModalTitle');
+            const daySelect = document.getElementById('exportDaySelect');
+            const sessionChecks = document.getElementById('exportSessionChecks');
+
+            modalTitle.innerHTML = `<i class="bi bi-share-fill me-2"></i>匯出點名單 - ${title}`;
+            document.getElementById('exportTargetType').value = type; // 'global' or 'group'
+            document.getElementById('exportTargetValue').value = value || '';
+
+            // Populate Days
+            const daysOfWeek = ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日'];
+            daySelect.innerHTML = daysOfWeek.map(d =>
+                `<option value="${d}" ${d === currentDay ? 'selected' : ''}>${d}</option>`
+            ).join('');
+
+            // Populate Sessions
+            sessionChecks.innerHTML = sessions.map((s, idx) => `
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="${s}" id="exportSession${idx}" ${s === currentSession ? 'checked' : ''}>
+                    <label class="form-check-label" for="exportSession${idx}">${s}</label>
+                </div>
+            `).join('');
+
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('exportModal')).show();
+        };
+
+        window.executeExport = () => {
+            const type = document.getElementById('exportTargetType').value;
+            const value = document.getElementById('exportTargetValue').value;
+            const selectedDay = document.getElementById('exportDaySelect').value;
+
+            // Get checked sessions
+            const selectedSessions = Array.from(document.querySelectorAll('#exportSessionChecks input:checked')).map(cb => cb.value);
+
+            if (selectedSessions.length === 0) return alert("請至少選擇一個時段");
+
+            let combinedText = "";
+            selectedSessions.forEach((sess, index) => {
+                if (index > 0) combinedText += "\n\n";
+                // Pass specific day and session to generate logic
+                const report = generateCustomReportText(type, value, selectedDay, sess);
+                combinedText += report;
+            });
+
+            copyToClipboard(combinedText);
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('exportModal')).hide();
+        };
+
+        // Custom Report Generation (Modified from original generateReportText)
+        function generateCustomReportText(scope, groupName, day, session) {
+            let output = "";
+            const statusKeyPrefix = `${day}_${session}`;
+            // Use existing logic but strictly for the specified day/session
+
+            output += `${session}\n`; // Just session name as requested
+
+            // Filter data logic...
+            // Need to reconstruct stats based on input day/session, not current globals
+
+            // Re-fetch all data isn't needed, we have studentsData.
+
+            let targetStudents = studentsData;
+            if (scope === 'group' && groupName) {
+                targetStudents = studentsData.filter(s => (currentGroupMode === 'class' ? s.class : s.group) === groupName);
+                // output += `${groupName} 點名單\n`; // Removed as per user request
+            } else {
+                // Global Scope: Apply Search Tags Filter if any to match UI
+                if (typeof searchTags !== 'undefined' && searchTags.length > 0) {
+                    targetStudents = studentsData.filter(student => {
+                        const sName = student.name.toLowerCase();
+                        const sClass = student.class.toLowerCase();
+                        const sGroup = (student.group || '').toLowerCase();
+                        return searchTags.some(tag => {
+                            const t = tag.toLowerCase();
+                            return sName.includes(t) || sClass.includes(t) || sGroup.includes(t);
+                        });
+                    });
+                }
+                // output += `總覽報表\n`; // Removed
+            }
+
+            let total = 0;
+            const stats = { '實到': 0 };
+            const detailList = {};
+            currentStatuses.forEach(s => { if (s !== '實到') detailList[s] = []; });
+
+            targetStudents.forEach(s => {
+                total++;
+                // Access status from DB: key is e.g. "星期一_早點名"
+                const key = `${day}_${session}`;
+                let rawStatus = (s.status && s.status[key]) ? s.status[key] : '實到';
+                // Fix: Strip HTML if present
+                const status = stripStatusHtml(rawStatus);
+
+                if (status === '實到') stats['實到']++;
+                else {
+                    if (!detailList[status]) detailList[status] = []; // Init if new status type
+                    detailList[status].push(s.name);
+                }
+            });
+
+            output += `應到${total}\n`; // No colon as per request
+            output += `事故：\n`;
+            Object.entries(detailList).forEach(([status, names]) => {
+                if (names.length > 0) {
+                    output += `${status}${names.length} ${names.join(' ')}\n`;
+                }
+            });
+            output += `實到：${stats['實到']}\n`;
+
+            return output;
+        }
+
+        function getStatusKey(session) {
+            return `${currentDay}_${session}`;
+        }
+
+
+        // Multi-select Search Tags
+        let searchTags = [];
+
+        onSnapshot(configRef, (docSnapshot) => {
+            if (docSnapshot.exists()) {
+                const data = docSnapshot.data();
+                if (data.statuses && Array.isArray(data.statuses)) {
+                    // Sanitize statuses on load to clean up specific DB corruption
+                    currentStatuses = data.statuses.map(s => stripStatusHtml(s)).filter(s => s.trim() !== "");
+                    renderStatusSettings();
+                    renderAll();
+                }
+            } else {
+                // Document doesn't exist -> Use defaults locally but DO NOT overwrite DB automatically
+                // This prevents accidental resets if connection is flaky or doc is temporarily unavailable
+                console.warn("Config document not found. Using default statuses.");
+                currentStatuses = ["實到", "遲到", "缺席", "病假", "事假", "公假"];
+                renderStatusSettings();
+                renderAll();
+            }
+        });
+
+        const q = query(studentsRef);
+        const unsubscribeStudents = onSnapshot(q, (snapshot) => {
+            studentsData = [];
+            snapshot.forEach((doc) => studentsData.push({ id: doc.id, ...doc.data() }));
+            studentsData.sort((a, b) => {
+                if (a.class !== b.class) return a.class.localeCompare(b.class);
+                return (a.timestamp?.seconds || 0) - (b.timestamp?.seconds || 0);
+            });
+            try { renderAll(); } catch (err) { console.error(err); }
+        });
+
+        const requestsQ = query(requestsRef);
+        const unsubscribeRequests = onSnapshot(requestsQ, (snapshot) => {
+            pendingRequests = [];
+            snapshot.forEach((doc) => {
+                pendingRequests.push({ id: doc.id, ...doc.data() });
+            });
+            renderAll(); // Re-render when requests change
+            if (typeof updateNotificationBadge === 'function') updateNotificationBadge(); // Helper: Force badge update
+            if (typeof refreshApprovalModal === 'function') refreshApprovalModal(); // Refresh modal content if open
+        });
+
+        function initWeekTabs() {
+            const container = document.getElementById('weekTabs');
+            container.innerHTML = days.map(d => `
+                <button class="btn ${currentDay === d ? 'btn-primary' : 'btn-outline-secondary'} rounded-pill text-nowrap px-4" 
+                        onclick="changeDay('${d}')">${d}</button>
+            `).join('');
+        }
+
+        function initSessionTabs() {
+            const container = document.getElementById('sessionTabs');
+            container.innerHTML = sessions.map(s => `
+                <button class="btn ${currentSession === s ? 'btn-primary' : 'btn-white bg-white border'} rounded-pill text-nowrap px-3 shadow-sm" 
+                        onclick="changeSession('${s}')">${currentDay} - ${s}</button>
+            `).join('');
+        }
+
+        window.changeDay = (d) => {
+            currentDay = d;
+            initWeekTabs();
+            initSessionTabs();
+            renderAll();
+        };
+
+        window.changeSession = (s) => {
+            console.log("Change Session to:", s);
+            currentSession = s;
+            initSessionTabs();
+            renderAll();
+        };
+
+        window.switchSquadron = (sq) => {
+            currentSquadron = sq;
+            document.getElementById('currentSquadronDisplay').textContent = sq;
+            renderAll();
+        };
+
+        window.setGroupBy = (mode) => {
+            currentGroupMode = mode;
+            renderAll();
+        };
+
+        function renderAll(searchTerm = '') {
+            if (currentUser && typeof updateNotificationBadge === 'function') {
+                try { updateNotificationBadge(); } catch (e) { }
+            }
+
+            const container = document.getElementById('classContainer');
+            const statsContainer = document.getElementById('statusStatsSection');
+            document.getElementById('currentSessionLabel').innerText = `(${currentDay} - ${currentSession})`;
+            container.innerHTML = "";
+            if (statsContainer) statsContainer.innerHTML = "";
+
+            // 1. Filter by Squadron First
+            let squadronStudents = [];
+            if (currentSquadron === "一大隊" || currentSquadron === "二大隊") {
+                // Show all squadrons in this battalion
+                const targetSquadrons = battalionStructure[currentSquadron];
+                squadronStudents = studentsData.filter(s => targetSquadrons.includes(s.squadron));
+            } else {
+                // Specific Squadron
+                squadronStudents = studentsData.filter(s => s.squadron === currentSquadron);
+            }
+
+            // Filter Data
+            let inputTerm = searchTerm ? searchTerm.toLowerCase().trim() : '';
+            if (!inputTerm) {
+                const inputEl = document.getElementById('searchInput');
+                if (inputEl) inputTerm = inputEl.value.toLowerCase().trim();
+            }
+
+            const displayedStudents = squadronStudents.filter(student => {
+                const sName = student.name.toLowerCase();
+                const sClass = student.class.toLowerCase();
+                const sGroup = (student.group || '').toLowerCase();
+
+                // 1. Check Input Term (Partial Match)
+                const matchesInput = !inputTerm || (
+                    sName.includes(inputTerm) ||
+                    sClass.includes(inputTerm) ||
+                    sGroup.includes(inputTerm)
+                );
+
+                // 2. Check Tags
+                let matchesTags = true;
+                if (searchTags.length > 0) {
+                    matchesTags = searchTags.some(tag => {
+                        const t = tag.toLowerCase();
+                        return sName.includes(t) || sClass.includes(t) || sGroup.includes(t);
+                    });
+                }
+
+                if (!inputTerm && searchTags.length === 0) return true;
+
+                let hit = false;
+                if (inputTerm && matchesInput) hit = true;
+                if (!hit && searchTags.length > 0 && matchesTags) hit = true;
+                return hit;
+            });
+
+            const grouped = {};
+            const globalStats = { total: 0, byStatus: {}, byStatusNames: {}, byStudents: {} };
+            currentStatuses.forEach(s => {
+                globalStats.byStatus[s] = 0;
+                globalStats.byStatusNames[s] = [];
+                globalStats.byStudents[s] = [];
+            });
+
+            displayedStudents.forEach(student => {
+                let key;
+                if (currentGroupMode === 'class') key = student.class;
+                else if (currentGroupMode === 'squadron') key = student.squadron;
+                else key = student.group;
+                if (!key) key = "未分組";
+                if (!grouped[key]) {
+                    // Initialize group stats with names array
+                    grouped[key] = { students: [], stats: { total: 0, byStatus: {}, byStatusNames: {} } };
+                    currentStatuses.forEach(s => {
+                        grouped[key].stats.byStatus[s] = 0;
+                        grouped[key].stats.byStatusNames[s] = [];
+                    });
+                }
+                grouped[key].students.push(student);
+
+                // Use Composite Key
+                const statusKey = getStatusKey(currentSession);
+                let status = "實到";
+                if (student.status && student.status[statusKey]) status = student.status[statusKey];
+                // Sanitize status immediately
+                status = stripStatusHtml(status);
+                student._currentStatus = status;
+
+                globalStats.total++;
+
+                // Dynamically init status if unknown
+                if (globalStats.byStatus[status] === undefined) {
+                    globalStats.byStatus[status] = 0;
+                    globalStats.byStatusNames[status] = [];
+                    globalStats.byStudents[status] = [];
+                }
+
+                globalStats.byStatus[status]++;
+                // Keep track of student objects for the Status Overview module
+                if (globalStats.byStudents[status]) {
+                    globalStats.byStudents[status].push(student);
+                }
+
+                // Only push name if not '實到'
+                if (status !== '實到') {
+                    globalStats.byStatusNames[status].push(student.name);
+                }
+
+                // Same for group stats
+                grouped[key].stats.total++;
+                if (grouped[key].stats.byStatus[status] === undefined) {
+                    grouped[key].stats.byStatus[status] = 0;
+                    grouped[key].stats.byStatusNames[status] = [];
+                }
+                grouped[key].stats.byStatus[status]++;
+                if (status !== '實到') {
+                    grouped[key].stats.byStatusNames[status].push(student.name);
+                }
+            });
+
+            // Trigger the centralized status overview renderer
+            updateStatusOverview({
+                total: globalStats.total,
+                present: globalStats.byStatus['實到'] || 0,
+                absent: globalStats.total - (globalStats.byStatus['實到'] || 0), // Simplification or calculate based on others
+                byStatus: globalStats.byStatus,
+                byStudents: globalStats.byStudents
+            });
+            window.currentGlobalStats = globalStats; // For detail modal lookup
+
+
+            if (Object.keys(grouped).length === 0) {
+                if (squadronStudents.length === 0) {
+                    container.innerHTML = `<div class="col-12 text-center text-muted py-5">
+                        <i class="bi bi-info-circle display-1 mb-3"></i>
+                        <p class="fs-4">目前「${currentSquadron}」沒有資料</p>
+                        <p>請點擊右上角「新增 (Add)」建立人員資料<br><small>(請記得選擇正確的中隊)</small></p>
+                        <button class="btn btn-outline-success mt-3" onclick="generateMockData()">
+                            <i class="bi bi-magic me-2"></i>自動生成範例資料 (Demo)
+                        </button>
+                     </div>`;
+                } else {
+                    container.innerHTML = `<div class="col-12 text-center text-muted py-5">找不到符合搜尋條件的資料</div>`;
+                }
+                return;
+            }
+
+            // Custom Sort Orders used from global scope
+
+            const sortedKeys = Object.keys(grouped).sort((a, b) => {
+                let order;
+                if (currentGroupMode === 'class') order = classOrder;
+                else if (currentGroupMode === 'squadron') order = squadronOrder;
+                else order = groupOrder;
+
+                const indexA = order.indexOf(a);
+                const indexB = order.indexOf(b);
+
+                // Known items first
+                if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+                if (indexA !== -1) return -1;
+                if (indexB !== -1) return 1;
+
+                // Unknown items alphabetically
+                return a.localeCompare(b, 'zh-Hant');
+            });
+
+            sortedKeys.forEach(key => {
+                try {
+                    const groupName = key;
+                    const group = grouped[key];
+                    let classStatStr = `應到: ${group.stats.total} | 實到: ${group.stats.byStatus['實到'] || 0}`;
+
+                    // Generate class detail string
+                    let classDetailHtml = "";
+                    Object.entries(group.stats.byStatusNames).forEach(([status, names]) => {
+                        if (status !== '實到' && names.length > 0) {
+                            classDetailHtml += `<div class="text-end" style="font-size: 0.85rem;">${status}: ${names.length} (${names.join(' ')})</div>`;
+                        }
+                    });
+
+                    const rows = group.students.map(student => {
+                        // Determine Permissions
+                        let canEdit = false;
+                        let canDelete = false;
+
+                        if (currentUser) {
+                            if (currentUser.role === 'super_admin') {
+                                canEdit = true;
+                                canDelete = true;
+                            } else if (currentUser.role === 'general_admin') {
+                                canEdit = true;
+                                canDelete = true;
+                            } else if (currentUser.role === 'class_admin') {
+                                if (currentUser.class === student.class && currentUser.squadron === student.squadron) {
+                                    canEdit = true;
+                                    canDelete = true; // Enabled for Intern Cadre (實習幹部)
+                                }
+                            } else if (currentUser.role === 'group_admin') {
+                                // Dining sessions: edit group members. Other times: only self
+                                const isDining = (currentSession === '中午上餐廳' || currentSession === '晚上上餐廳');
+                                if (isDining && student.group === currentUser.group && currentUser.squadron === student.squadron) {
+                                    canEdit = true;
+                                } else if (currentUser.id === student.id) {
+                                    canEdit = true;
+                                }
+                            } else { // student
+                                if (currentUser.id === student.id) canEdit = true;
+                            }
+                        }
+
+                        // Check for Pending Requests
+                        const sessionKey = `${currentDay}_${currentSession}`;
+
+                        const pendingReq = pendingRequests.find(r =>
+                            r.studentId === student.id &&
+                            r.targetSession === sessionKey &&
+                            r.status === 'pending'
+                        );
+
+                        let statusDisplay = getStatusBadge(student._currentStatus);
+                        let rowStyle = "";
+
+                        if (pendingReq) {
+                            statusDisplay = `<span class="badge bg-warning text-dark">審核中: ${pendingReq.newStatus}</span>`;
+                            canEdit = false; // Lock editing while pending
+                            rowStyle = "background-color: #fff3cd;"; // Light yellow row
+                        }
+
+                        // Onclick name: if not logged in, trigger login. If logged in but no edit, do nothing or show info.
+                        const nameAction = !currentUser ? `onclick="initLogin('${student.id}', '${student.name}')" style="cursor: pointer; text-decoration: underline;"` : '';
+
+                        // Check if getStatusList returns array
+                        const statusList = getStatusList(student.squadron);
+                        if (!Array.isArray(statusList)) {
+                            console.error("Status List is not array for", student.squadron, statusList);
+                            return ""; // Fail gracefully
+                        }
+
+                        return `
+                        <tr style="${rowStyle}">
+                            <td>
+                                <span class="fw-bold ${getNameColorClass(student._currentStatus)}" ${nameAction}>${student.name}</span>${(student.dorm || student.bed) ? ` <span class="text-muted small">${(student.dorm || '')}${(student.bed || '')}</span>` : ''}
+                                <br><span class="badge bg-light text-secondary border">${student.squadron ? student.squadron + ' / ' : ''}${student.class} / ${student.group || '-'}</span>
+                            </td>
+                            <td>${statusDisplay}</td>
+                            <td class="text-center">
+                                ${(pendingReq && currentUser && (currentUser.id === pendingReq.requesterId || currentUser.role === 'super_admin')) ?
+                                `<button class="btn btn-sm btn-outline-danger w-100 fw-bold" onclick="cancelRequest('${pendingReq.id}')">取消申請</button>` :
+                                (canEdit ? `<select class="form-select form-select-sm fw-bold ${getStatusColorClass(student._currentStatus)}" 
+                                        onchange="updateStatus('${student.id}', this.value)" 
+                                        style="min-width: 110px;">
+                                    ${statusList.map(s => {
+                                    const sClean = stripStatusHtml(s);
+                                    return `<option value="${s}" ${student._currentStatus === sClean ? 'selected' : ''}>${sClean}</option>`;
+                                }).join('')}
+                                    </select>` : '')
+                            }
+                            </td>
+                            <td class="text-end">
+                                ${canDelete ? `<button class="btn btn-sm btn-outline-danger" onclick="removeStudent('${student.id}')" title="刪除人員"><i class="bi bi-person-x-fill"></i></button>` : ''}
+                            </td>
+                        </tr>
+                    `}).join('');
+
+                    const card = `
+                        <div class="col-xl-6 col-12">
+                            <div class="card shadow-sm border-0 h-100">
+                                <div class="class-header d-flex justify-content-between align-items-start">
+                                    <div class="d-flex align-items-center mt-1">
+                                        <span class="fs-5 me-2"><i class="bi bi-house-door-fill me-2"></i>${groupName}</span>
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-link text-white p-0" type="button" data-bs-toggle="dropdown"><i class="bi bi-three-dots-vertical"></i></button>
+                                            <ul class="dropdown-menu">
+                                                <li><button class="dropdown-item" onclick="openExportModal('group', '${groupName}', '${groupName}')"><i class="bi bi-clipboard me-2"></i>匯出/複製本班點名單</button></li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li><button class="dropdown-item text-danger" onclick="resetStatus('current', '${groupName}')"><i class="bi bi-arrow-counterclockwise me-2"></i>重置 (本次)</button></li>
+                                                <li><button class="dropdown-item text-danger" onclick="resetStatus('day', '${groupName}')"><i class="bi bi-calendar-x me-2"></i>重置 (整天)</button></li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex flex-column align-items-end">
+                                        <span class="badge bg-light text-dark opacity-75 fw-normal fs-6 mb-1">${classStatStr}</span>
+                                        <div class="text-white opacity-90">${classDetailHtml}</div>
+                                    </div>
+                                </div>
+                                <div class="card-body p-0"><div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead class="table-light"><tr><th style="width: 25%">姓名</th><th style="width: 15%">狀態</th><th>操作</th><th style="width: 10%"></th></tr></thead><tbody>${rows}</tbody></table></div></div>
+                            </div>
+                        </div>
+                    `;
+                    container.innerHTML += card;
+                } catch (e) {
+                    console.error("Error rendering group:", key, e);
+                }
+            });
+
+            // Re-apply search filter if exists - REMOVED because filterStudents() conflicts with renderAll's internal filtering logic
+            // if (document.getElementById('searchInput').value.trim()) {
+            //     filterStudents();
+            // }
+
+            // Update Status Overview
+            window.currentGlobalStats = globalStats;
+        }
+
+        window.migrateData = async () => {
+            if (!confirm('確定要執行資料遷移？這將為所有學生設定預設密碼 0000 與角色 student。')) return;
+            console.log("開始遷移資料...");
+            const snapshot = await getDocs(studentsRef);
+            let updateCount = 0;
+            const promises = [];
+
+            snapshot.forEach(docSnap => {
+                const data = docSnap.data();
+                // Check if migration is needed
+                if (!data.password || !data.role) {
+                    promises.push(updateDoc(doc(db, "students", docSnap.id), {
+                        password: data.password || '0000',
+                        role: data.role || 'student'
+                    }));
+                    updateCount++;
+                }
+            });
+
+            try {
+                await Promise.all(promises);
+                console.log(`遷移完成！共更新 ${updateCount} 筆資料。`);
+                alert(`遷移完成！共更新 ${updateCount} 筆資料。`);
+            } catch (e) {
+                console.error("遷移失敗", e);
+                alert("遷移失敗，請查看 Console。");
+            }
+        };
+
+        window.setGroupBy = (m) => { currentGroupMode = m; renderAll(); };
+        window.addStudent = async () => {
+            if (!currentUser || (currentUser.role !== 'super_admin' && currentUser.role !== 'general_admin' && currentUser.role !== 'class_admin')) return alert("權限不足");
+            const classInput = document.getElementById('inputClass').value.trim();
+            const groupInput = document.getElementById('inputGroup').value.trim();
+            const nameInput = document.getElementById('inputName').value.trim();
+            const squadronInput = document.getElementById('inputSquadron').value; // Get Squadron
+
+            if (!classInput || !nameInput) return alert("請輸入班級和姓名");
+
+            const targetSquadron = squadronInput || currentSquadron;
+            if (currentUser.role === 'class_admin') {
+                if (targetSquadron !== currentUser.squadron || classInput !== currentUser.class) {
+                    return alert("權限不足：您只能在自己所屬的「中隊」與「建置班級」新增人員");
+                }
+            }
+
+            try {
+                await addDoc(studentsRef, {
+                    squadron: squadronInput || currentSquadron, // Save Squadron
+                    class: classInput,
+                    group: groupInput || "無",
+                    name: nameInput,
+                    status: {},
+                    password: '0000',
+                    role: 'student',
+                    timestamp: new Date()
+                });
+                document.getElementById('inputName').value = '';
+                alert("新增成功");
+            } catch (e) { console.error(e); alert("新增失敗"); }
+        };
+        window.batchAddStudents = async () => {
+            if (!currentUser || (currentUser.role !== 'super_admin' && currentUser.role !== 'general_admin')) return alert("權限不足");
+            const input = document.getElementById('batchInput').value.trim();
+            if (!input) return;
+            const lines = input.split('\n');
+            const promises = [];
+            for (let line of lines) {
+                line = line.trim();
+                const parts = line.split(/\s+/);
+                if (parts.length < 3) continue;
+
+                let sq = currentSquadron;
+                let cl = parts[0];
+                let gr = parts[1];
+                let nm = parts.slice(2).join(' ');
+
+                // Check if first part looks like a known squadron (heuristic or strict?)
+                // Or just check length? If length >= 4, we *could* assume first is squadron.
+                // But names might have spaces. 
+                // Better heuristic: if parts[0] includes '大' or '中' (common in One/Two Battalion names) OR is in a known list?
+                // Let's use simple length heuristic combined with user instruction. 
+                // User instruction says: Squadron Class Group Name. 
+                // If 4+ parts, assume part[0] is squadron IF it matches a known pattern or just straightforwardly take it.
+                // Let's check against known squadron names for safety.
+                const allSquadrons = [...battalionStructure["一大隊"], ...battalionStructure["二大隊"]];
+                if (parts.length >= 4 && allSquadrons.includes(parts[0])) {
+                    sq = parts[0];
+                    cl = parts[1];
+                    gr = parts[2];
+                    nm = parts.slice(3).join(' ');
+                }
+
+                promises.push(addDoc(studentsRef, {
+                    squadron: sq,
+                    class: cl,
+                    group: gr,
+                    name: nm,
+                    status: {},
+                    password: '0000',
+                    role: 'student',
+                    timestamp: new Date()
+                }));
+            }
+            try {
+                await Promise.all(promises);
+                alert("匯入成功！");
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('batchAddModal')).hide();
+                document.getElementById('batchInput').value = '';
+            } catch (e) { console.error(e); alert("匯入失敗"); }
+        };
+        window.updateStatus = async (id, val) => {
+            if (!currentUser) return;
+
+            const student = studentsData.find(s => s.id === id);
+            if (!student) return;
+
+            let canDirectlyUpdate = false;
+            const role = currentUser.role;
+
+            // 1. Super Admin & General Admin (Duty Officer)
+            if (role === 'super_admin' || role === 'general_admin') {
+                canDirectlyUpdate = true;
+            }
+            // 2. Battalion Admin (大隊幹部)
+            else if (role === 'battalion_admin') {
+                const targetBattalion = getBattalionFromSquadron(student.squadron);
+                if (targetBattalion && targetBattalion === currentUser.managedBattalion) {
+                    canDirectlyUpdate = true;
+                }
+            }
+            // 3. Squadron Admin & Duty Class (中隊幹部 / 值星班)
+            else if (role === 'squadron_admin' || role === 'duty_class') {
+                if (student.squadron === currentUser.squadron) {
+                    canDirectlyUpdate = true;
+                }
+            }
+            // 4. District Admin (區隊長)
+            else if (role === 'district_admin') {
+                if (currentUser.managedClasses && currentUser.managedClasses.includes(student.class)) {
+                    canDirectlyUpdate = true;
+                }
+            }
+            // 5. Class Admin (實習幹部)
+            else if (role === 'class_admin') {
+                if (student.class === currentUser.class && student.squadron === currentUser.squadron) {
+                    canDirectlyUpdate = true;
+                }
+            }
+            // 6. Group Admin (組別負責人) - Dining Only
+            else if (role === 'group_admin') {
+                const isDining = (currentSession === '中午上餐廳' || currentSession === '晚上上餐廳');
+                if (isDining && student.group === currentUser.group && student.squadron === currentUser.squadron) {
+                    canDirectlyUpdate = true;
+                }
+            }
+
+            const statusKey = getStatusKey(currentSession);
+
+            if (canDirectlyUpdate) {
+                try {
+                    const studentRef = doc(db, "students", id);
+                    await updateDoc(studentRef, { [`status.${statusKey}`]: val });
+                } catch (e) {
+                    console.error("Error updating status: ", e);
+                    alert("更新失敗: " + e.message);
+                }
+            } else {
+                // Create Request
+                try {
+                    await addDoc(requestsRef, {
+                        studentId: id,
+                        studentName: student.name,
+                        studentClass: student.class,
+                        studentGroup: student.group || '',
+                        studentSquadron: student.squadron || '', // Critical for filtering
+                        targetSession: statusKey, // e.g. 星期一_早點名
+                        sessionName: currentSession,
+                        dayName: currentDay,
+                        originStatus: (student.status && student.status[statusKey]) ? student.status[statusKey] : '實到',
+                        newStatus: val,
+                        requesterId: currentUser.id,
+                        requesterName: currentUser.name,
+                        timestamp: new Date().toISOString(),
+                        status: 'pending' // pending, approved, rejected
+                    });
+                    alert("已送出狀態變更申請，請等待幹部審核。");
+                    // Reset select to original value visually (will be handled by re-render, but good specifically)
+                    renderAll();
+                } catch (e) {
+                    console.error("Error sending request: ", e);
+                    alert("送出申請失敗: " + e.message);
+                }
+            }
+        };
+        window.removeStudent = async (id) => {
+            if (!currentUser || !['super_admin', 'general_admin', 'class_admin'].includes(currentUser.role)) return alert("權限不足");
+
+            if (currentUser.role === 'class_admin') {
+                const student = studentsData.find(s => s.id === id);
+                if (!student || student.squadron !== currentUser.squadron || student.class !== currentUser.class) {
+                    return alert("權限不足：您只能刪除自己中隊與建置班級的學生");
+                }
+            }
+
+            if (confirm('確定刪除？')) await deleteDoc(doc(db, "students", id));
+        };
+        // Settings Modal Functions
+        window.openSettingsModal = async () => {
+            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('settingsModal'));
+
+            // Force fetch latest data to ensure UI is fresh
+            try {
+                const snap = await getDoc(configRef);
+                if (snap.exists()) {
+                    currentStatuses = snap.data().statuses || [];
+                }
+            } catch (e) {
+                console.error("Force fetch error:", e);
+            }
+
+            renderStatusSettings();
+            modal.show();
+        };
+
+        window.addNewStatusType = async () => {
+            if (!currentUser || !['super_admin', 'general_admin', 'class_admin', 'group_admin', 'squadron_admin', 'duty_class'].includes(currentUser.role)) return alert("權限不足");
+            const val = document.getElementById('newStatusInput').value.trim();
+            if (!val) return;
+
+            try {
+                // Optimistic check for duplicates in local data
+                if (currentStatuses.some(s => stripStatusHtml(s).trim() === val)) {
+                    alert("該狀態已存在");
+                    return;
+                }
+
+                // 1. Fetch LATEST data
+                const snapshot = await getDoc(configRef);
+                let currentList = [];
+                if (snapshot.exists()) {
+                    currentList = snapshot.data().statuses || [];
+                }
+
+                // 2. Double check duplicates with server data
+                if (currentList.some(s => stripStatusHtml(s).trim() === val)) {
+                    alert("該狀態已存在");
+                    return;
+                }
+
+                const newList = [...currentList, val];
+
+                // 3. Optimistic Update (Immediate Feedback)
+                currentStatuses = newList;
+                renderStatusSettings();
+                document.getElementById('newStatusInput').value = '';
+
+                // 4. Write to DB
+                await setDoc(configRef, { statuses: newList }, { merge: true });
+
+                alert("新增成功！");
+            } catch (e) {
+                console.error("Add Status Error:", e);
+                alert("新增失敗: " + e.message);
+                // Revert if failed (reload)
+                location.reload();
+            }
+        };
+
+        window.removeStatusType = async (val) => {
+            if (!currentUser || !['super_admin', 'general_admin', 'class_admin', 'group_admin', 'squadron_admin', 'duty_class'].includes(currentUser.role)) return alert("權限不足");
+
+            if (confirm(`確定要永久刪除「${val}」嗎？`)) {
+                try {
+                    const configRef = doc(db, "settings", "globalConfig");
+                    const snapshot = await getDoc(configRef);
+
+                    if (!snapshot.exists()) {
+                        throw new Error("設定檔不存在");
+                    }
+
+                    const rawStatuses = snapshot.data().statuses || [];
+
+                    // Reotring to EXACT MATCH filtering
+                    // Using clean logic was causing mismatch if the stored value had hidden chars or HTML
+                    // We trust that 'val' passed from the UI matches what is in the DB
+                    const cleanStatuses = rawStatuses.filter(s => s !== val);
+
+                    // Atomic-like replacement of the whole list
+                    await setDoc(configRef, { statuses: cleanStatuses }, { merge: true });
+
+                    // Optimistic update
+                    currentStatuses = cleanStatuses;
+                    renderStatusSettings();
+
+                    alert("刪除成功！");
+                } catch (e) {
+                    console.error("Remove Status Error:", e);
+                    alert("刪除失敗: " + e.message + "\n(可能是網頁權限不足)");
+                    location.reload();
+                }
+            }
+        };
+
+        // Settings Modal Functions
+        window.openSettingsModal = async () => {
+            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('settingsModal'));
+
+            // Force fetch latest data to ensure UI is fresh
+            try {
+                const snap = await getDoc(configRef);
+                if (snap.exists()) {
+                    currentStatuses = snap.data().statuses || [];
+                }
+            } catch (e) {
+                console.error("Force fetch error:", e);
+            }
+
+            renderStatusSettings();
+            modal.show();
+        };
+
+        window.renderStatusSettings = () => {
+            const container = document.getElementById('statusListContainer');
+            if (!container) return;
+
+            container.innerHTML = currentStatuses.map(s => `
+                <div class="badge bg-white text-dark border p-2 m-1 d-flex align-items-center">
+                    <span class="me-2 text-primary fw-bold" style="font-size: 1rem;">${s}</span>
+                    <button class="btn btn-sm btn-link text-danger p-0" onclick="removeStatusType('${s}')">
+                        <i class="bi bi-x-circle-fill"></i>
+                    </button>
+                </div>
+            `).join('');
+
+            const scopeSelect = document.getElementById('settingTargetScope');
+            if (scopeSelect && scopeSelect.options.length === 0) {
+                const scopes = getEditableStatusScopes();
+                scopeSelect.innerHTML = scopes.map(s => `<option value="${s.val}">${s.label}</option>`).join('');
+            }
+        };
+
+        // Mock Data Generator
+        window.generateMockData = async () => {
+            if (!confirm("確定要生成示範資料？\n這將為每個中隊建立 5 位成員 (共 70 位)。")) return;
+
+            console.log("Generating mock data...");
+            const names = [
+                "Aaron", "Abel", "Adam", "Alan", "Alex", "Andrew", "Anthony", "Arthur", "Austin", "Ben",
+                "Brandon", "Brian", "Bruce", "Carl", "Charles", "Chris", "Christian", "Clark", "Colin", "Daniel",
+                "David", "Dennis", "Derek", "Donald", "Douglas", "Edward", "Eric", "Evan", "Felix", "Frank",
+                "Gabriel", "Gary", "George", "Gordon", "Greg", "Harold", "Harry", "Henry", "Howard", "Hugo",
+                "Ian", "Isaac", "Jack", "Jacob", "James", "Jason", "Jeffrey", "Jeremy", "Jerry", "Jesse",
+                "Jim", "Joe", "John", "Jonathan", "Jose", "Joseph", "Joshua", "Justin", "Keith", "Ken",
+                "Kevin", "Kyle", "Larry", "Lawrence", "Leo", "Leonard", "Louis", "Luke", "Mark", "Martin",
+                "Matt", "Matthew", "Max", "Michael", "Mike", "Nathan", "Nicholas", "Nick", "Noah", "Oliver",
+                "Oscar", "Patrick", "Paul", "Peter", "Philip", "Raymond", "Richard", "Robert", "Roger", "Ronald",
+                "Ryan", "Sam", "Samuel", "Scott", "Sean", "Simon", "Stanley", "Stephen", "Steven", "Terry",
+                "Thomas", "Tim", "Timothy", "Tony", "Tyler", "Victor", "Vincent", "Walter", "Wayne", "William"
+            ];
+
+            const allSquadrons = [...battalionStructure["一大隊"], ...battalionStructure["二大隊"]];
+            const promises = [];
+            let nameIdx = 0;
+
+            for (const squad of allSquadrons) {
+                for (let i = 1; i <= 5; i++) {
+                    const name = names[nameIdx % names.length] + (Math.floor(nameIdx / names.length) > 0 ? ` ${Math.floor(nameIdx / names.length) + 1}` : "");
+                    nameIdx++;
+
+                    promises.push(addDoc(studentsRef, {
+                        squadron: squad,
+                        class: `0${i}班`,
+                        group: "A組",
+                        name: name,
+                        status: {},
+                        password: '0000',
+                        role: 'student',
+                        timestamp: new Date()
+                    }));
+                }
+            }
+
+            try {
+                await Promise.all(promises);
+                alert("示範資料生成完畢！");
+            } catch (e) {
+                console.error(e);
+                alert("生成失敗");
+            }
+        };
+
+        window.resetStatus = async (scope, groupName) => {
+            if (!currentUser) return alert("請先登入");
+
+            // Permission Check
+            let canReset = false;
+            if (currentUser.role === 'super_admin' || currentUser.role === 'general_admin') canReset = true;
+            if (currentUser.role === 'class_admin' && currentUser.class === groupName && currentUser.squadron === currentSquadron) {
+                const isDining = (currentSession === '中午上餐廳' || currentSession === '晚上上餐廳');
+                if (scope === 'day') {
+                    // Class Admin cannot reset 'day' because it includes dining sessions which they don't manage
+                    canReset = false;
+                } else {
+                    // Scope is current. Allow only if NOT dining.
+                    canReset = !isDining;
+                }
+            }
+            if (currentUser.role === 'group_admin' && currentUser.group === groupName && currentUser.squadron === currentSquadron) {
+                // Group admin logic: usually restricted to dining, but for "Reset" let's allow if it's their group?
+                // User asked for "Reset" on the 3 dots.
+                // Let's stick to the rule: Group Admin only valid for Dining Sessions?
+                // Or maybe just let them manage their group if they see the button.
+                // However, "Reset All Day" might be too powerful if they only manage dining.
+                // Let's restrict based on session for safety?
+                // The prompt didn't specify, but safer to follow general rules.
+                // Actually, "Reset All Day" implies modifying non-dining sessions.
+                // If Group Admin is restricted to Dining, they shouldn't reset "Morning Call".
+                // So "Reset All Day" should be BLOCKED for Group Admin if they are dining only.
+                // Let's allow simple logic for now: If they can edit the group, they can reset.
+                // But wait, group_admin logic in updateStatus was strict.
+                // Let's check updateStatus logic:
+                // Group Admin can edit IF isDining AND student.group == currentUser.group.
+                // So if scope is 'day', it touches non-dining. Thus Group Admin cannot 'day'.
+                if (scope === 'day') canReset = false;
+                else {
+                    // scope is 'current'. Is it dining?
+                    const isDining = (currentSession === '中午上餐廳' || currentSession === '晚上上餐廳');
+                    if (isDining) canReset = true;
+                }
+            }
+
+            if (!canReset) return alert("權限不足");
+
+            const label = scope === 'current' ? `本時段 (${currentSession})` : `今天 (${currentDay})`;
+            if (!confirm(`確定要將 ${groupName} 的 ${label} 所有差勤狀態重置為「實到」嗎？此操作無法復原。`)) return;
+
+            // Find target students
+            const targets = studentsData.filter(s => {
+                if (currentGroupMode === 'class') return s.class === groupName;
+                if (currentGroupMode === 'group') return s.group === groupName;
+                return false;
+            });
+
+            if (targets.length === 0) return alert("找不到學生資料");
+
+            let updateCount = 0;
+            const promises = [];
+
+            for (const s of targets) {
+                const updates = {};
+                // Find and delete relevant pending requests
+                const relevantRequests = pendingRequests.filter(r => r.studentId === s.id);
+
+                if (scope === 'current') {
+                    const key = `${currentDay}_${currentSession}`;
+                    // Update Status
+                    if (s.status && s.status[key] && s.status[key] !== '實到') {
+                        updates[`status.${key}`] = deleteField();
+                    }
+                    // Also delete pending request for THIS session
+                    const reqToDelete = relevantRequests.find(r => r.targetSession === key);
+                    if (reqToDelete) {
+                        promises.push(deleteDoc(doc(db, "requests", reqToDelete.id)));
+                    }
+                } else {
+                    // 'day' scope: reset all sessions for currentDay
+                    sessions.forEach(sess => {
+                        const key = `${currentDay}_${sess}`;
+                        if (s.status && s.status[key] && s.status[key] !== '實到') {
+                            updates[`status.${key}`] = deleteField();
+                        }
+                        // Delete requests
+                        const reqToDelete = relevantRequests.find(r => r.targetSession === key);
+                        if (reqToDelete) {
+                            promises.push(deleteDoc(doc(db, "requests", reqToDelete.id)));
+                        }
+                    });
+                }
+
+                if (Object.keys(updates).length > 0) {
+                    promises.push(updateDoc(doc(db, "students", s.id), updates));
+                    updateCount++;
+                }
+            }
+            try {
+                await Promise.all(promises);
+                alert(`已重置 ${updateCount} 位學生的狀態。`);
+                renderAll(); // Should trigger automatically by snapshot but good to force
+            } catch (e) {
+                console.error(e);
+                alert("重置失敗: " + e.message);
+            }
+        };
+        // --- Multi-select Search Logic ---
+
+        window.handleSearchInput = (event) => {
+            if (event.key === 'Enter') {
+                const term = event.target.value.trim();
+                window.addSearchTag(term);
+            }
+        };
+
+        window.addSearchTag = (term) => {
+            if (term && !searchTags.includes(term)) {
+                searchTags.push(term);
+                document.getElementById('searchInput').value = ''; // Clear input
+                renderSearchTags();
+                renderAll();
+            } else if (term) {
+                document.getElementById('searchInput').value = ''; // Clear duplicate
+            }
+        };
+
+        window.removeSearchTag = (index) => {
+            searchTags.splice(index, 1);
+            renderSearchTags();
+            renderAll();
+        };
+
+        // Render Search Tags
+        window.renderSearchTags = () => {
+            const container = document.getElementById('searchTagsContainer');
+            if (!container) return;
+            container.innerHTML = searchTags.map((tag, index) => `
+                <span class="badge bg-primary d-flex align-items-center gap-2 px-3 py-2 fs-6">
+                    ${tag}
+                    <i class="bi bi-x-circle-fill cursor-pointer" onclick="removeSearchTag(${index})"></i>
+                </span>
+            `).join('');
+        };
+
+        // Status Settings Logic
+        const statusConfigRef = doc(db, "settings", "statusConfig");
+
+        // Listen to Status Config
+        onSnapshot(statusConfigRef, (docSnap) => {
+            if (docSnap.exists()) {
+                statusConfigCache = docSnap.data();
+                // Ensure global exists
+                if (!statusConfigCache["global"]) statusConfigCache["global"] = [...DEFAULT_STATUSES];
+            } else {
+                // Initialize if missing
+                setDoc(statusConfigRef, { global: DEFAULT_STATUSES });
+                statusConfigCache = { global: [...DEFAULT_STATUSES] };
+            }
+            // Re-render UI if settings open or just to be safe
+            if (document.getElementById('settingsModal').classList.contains('show')) {
+                renderStatusSettings();
+            }
+            renderAll(); // Re-render main table with new statuses
+        });
+
+        window.openSettingsModal = () => {
+            if (!currentUser) return;
+            // Check permissions
+            const scopes = getEditableStatusScopes();
+            if (scopes.length === 0) {
+                alert("您沒有權限設定差勤狀態。");
+                return;
+            }
+
+            const select = document.getElementById('settingTargetScope');
+            select.innerHTML = scopes.map(s => `<option value="${s.val}">${s.label}</option>`).join('');
+
+            // Default selection logic: existing logic or first
+            renderStatusSettings();
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('settingsModal')).show();
+        };
+
+        window.renderStatusSettings = () => {
+            const scope = document.getElementById('settingTargetScope').value;
+            const container = document.getElementById('statusListContainer');
+
+            // Get current list for this scope. If not set, it might be empty or fallback.
+            // For editing, if a squadron has NO specific config, we should probably show GLOBAL as "Inherited" 
+            // OR show empty and let them start fresh?
+            // Better: If undefined, show "Use Global (Default)" and allow "Override".
+            // To simplify: If undefined, we initialize it with copy of Global when they try to add?
+            // Or just treat undefined as empty array?
+            // Let's treat it as: If key missing in cache, it uses global for *display*, but for *editing*, we start with global copy.
+
+            let list = statusConfigCache[scope];
+            if (!list && scope !== 'global') {
+                // If specific scope has no config, showing Global's effectively
+                list = statusConfigCache['global'] || DEFAULT_STATUSES;
+            } else if (!list) {
+                list = DEFAULT_STATUSES;
+            }
+
+            container.innerHTML = list.map((status, index) => `
+                <div class="badge bg-light text-dark border p-2 me-2 mb-2 d-flex align-items-center">
+                    ${status} 
+                    <button class="btn-close ms-2" style="font-size: 0.8em;" onclick="removeStatusType('${scope}', '${status}')"></button>
+                </div>
+                `
+            ).join('');
+        };
+
+        // Export helper functions
+        window.copyToClipboard = copyToClipboard;
+        // window.generateReportText = generateReportText; // Removed to fix RefError
+        window.renderAll = renderAll;
+        window.copyGlobalReport = () => openExportModal('global', null, '總覽');
+
+        // --- Auth & Login Logic ---
+
+        // Update UI based on login status
+        function updateAuthUI() {
+            const adminLoginBtn = document.getElementById('adminLoginBtn');
+            const userInfoDisplay = document.getElementById('userInfoDisplay');
+            const userNameDisplay = document.getElementById('userNameDisplay');
+            const notificationBtn = document.getElementById('notificationBtn');
+            const adminManageLink = document.getElementById('adminManageLink');
+
+            if (currentUser) {
+                adminLoginBtn.classList.add('d-none');
+                userInfoDisplay.classList.remove('d-none');
+                userInfoDisplay.classList.add('d-flex');
+
+                let roleName = "學生";
+                let isAdmin = false;
+
+                // Priority: Custom Title > Role Mapping
+                if (currentUser.customRoleTitle) {
+                    roleName = currentUser.customRoleTitle;
+                    if (['super_admin', 'general_admin'].includes(currentUser.role)) isAdmin = true;
+                } else if (currentUser.role === 'super_admin') { roleName = "超級管理員"; isAdmin = true; }
+                else if (currentUser.role === 'general_admin') { roleName = "管理員"; isAdmin = true; }
+                else if (currentUser.role === 'class_admin') { roleName = "實習幹部"; isAdmin = true; }
+                else if (currentUser.role === 'group_admin') { roleName = "組別班代"; isAdmin = true; }
+
+                userNameDisplay.innerHTML = `${currentUser.name} <span class="badge bg-secondary ms-1" style="font-size: 0.7em;">${roleName}</span>`;
+
+                if (isAdmin) {
+                    notificationBtn.classList.remove('d-none');
+                    updateNotificationBadge();
+                } else {
+                    notificationBtn.classList.add('d-none');
+                }
+
+                if (currentUser.role === 'super_admin') {
+                    adminManageLink.classList.remove('d-none');
+                } else {
+                    adminManageLink.classList.add('d-none');
+                }
+
+                // 實習幹部以上可匯出寢室資料
+                const exportDormLink = document.getElementById('exportDormLink');
+                if (exportDormLink) {
+                    const canExport = ['super_admin', 'general_admin', 'class_admin'].includes(currentUser.role);
+                    if (canExport) exportDormLink.classList.remove('d-none');
+                    else exportDormLink.classList.add('d-none');
+                }
+
+                // Control Add Student Button visibility
+                const addStudentBtn = document.getElementById('addStudentBtn');
+                if (currentUser.role === 'super_admin' || currentUser.role === 'general_admin' || currentUser.role === 'class_admin') {
+                    addStudentBtn.classList.remove('d-none');
+                } else {
+                    addStudentBtn.classList.add('d-none');
+                }
+
+            } else {
+                adminLoginBtn.classList.remove('d-none');
+                userInfoDisplay.classList.add('d-none');
+                userInfoDisplay.classList.remove('d-flex');
+                notificationBtn.classList.add('d-none');
+                adminManageLink.classList.add('d-none');
+
+                // Hide Add btn if not logged in (or show if you want default to be visible? No, default should be hidden or visible? 
+                // Original behavior: it was visible. 
+                // Requirement: "Student Cadre cannot add". 
+                // If not logged in, who are they? Guest. Should Guest add? Probably not.
+                // Let's hide it for consistency.
+                const addStudentBtn = document.getElementById('addStudentBtn');
+                if (addStudentBtn) addStudentBtn.classList.add('d-none');
+            }
+            renderAll(); // Re-render to update permissions
+            renderStatusSettings(); // Re-render settings modal UI based on new permissions
+        }
+
+        window.showAdminDashboard = () => {
+            renderAdminUserList();
+            const btn = document.getElementById('deleteAllBtn');
+            if (btn) {
+                if (currentUser && currentUser.role === 'super_admin') {
+                    btn.classList.remove('d-none');
+                } else {
+                    btn.classList.add('d-none');
+                }
+            }
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('adminDashboardModal')).show();
+        };
+
+        window.deleteAllUsers = async () => {
+            if (!currentUser || currentUser.role !== 'super_admin') return;
+
+            if (!confirm("⚠️ 危險操作警告 (1/3)\n\n您確定要「刪除所有人員」嗎？\n\n此操作將清空系統中除了您以外的所有使用者資料！\n資料一旦刪除將無法復原！")) return;
+            if (!confirm("⚠️ 再次確認 (2/3)\n\n真的要刪除嗎？\n\n這會造成嚴重的資料遺失，請確認您知道自己在做什麼！")) return;
+            if (!confirm("⛔ 最後確認 (3/3)\n\n這是最後一次機會。\n\n點擊「確定」將立即開始刪除。\n點擊「取消」可以中止操作。")) return;
+
+            const candidates = studentsData.filter(s => s.id !== currentUser.id);
+            if (candidates.length === 0) {
+                alert("沒有其他人員可供刪除。");
+                return;
+            }
+
+            const btn = document.getElementById('deleteAllBtn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 刪除中...';
+
+            try {
+                let count = 0;
+                for (const student of candidates) {
+                    await deleteDoc(doc(db, "students", student.id));
+                    count++;
+                }
+
+                alert(`已成功刪除 ${count} 位人員。`);
+                renderAdminUserList();
+            } catch (e) {
+                console.error(e);
+                alert("刪除過程中發生錯誤：" + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        };
+
+        window.showAddStudentModal = () => {
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('addStudentModal')).show();
+        };
+
+        window.renderAdminUserList = () => {
+            const tbody = document.getElementById('adminUserListBody');
+            const term = document.getElementById('adminUserSearch').value.toLowerCase();
+
+            // Dynamic Role Options
+            const roleOptions = Object.keys(ROLE_DEFS).map(key => ({ val: key, label: ROLE_DEFS[key].label }));
+
+            const filtered = studentsData.filter(s => {
+                const roleLabel = ROLE_DEFS[s.role]?.label || '';
+                const matchesSearch = s.name.includes(term) ||
+                    s.class.includes(term) ||
+                    (s.group && s.group.includes(term)) ||
+                    (s.role || 'student').includes(term) ||
+                    roleLabel.includes(term) ||
+                    (s.squadron || '').includes(term);
+                return matchesSearch;
+            }).sort((a, b) => (a.squadron || "").localeCompare(b.squadron || "") || a.class.localeCompare(b.class));
+
+            tbody.innerHTML = filtered.map(s => {
+                const currentRole = s.role || 'student';
+                return `
+                    <tr>
+                        <td>
+                            <span class="badge bg-info text-dark me-1" style="font-size: 0.8em;">${s.squadron || '未分組'}</span>
+                            ${s.name}
+                        </td>
+                        <td>
+                             <div class="d-flex align-items-center">
+                                <select class="form-select form-select-sm me-1" onchange="updateUserClass('${s.id}', this.value)" style="width: auto; min-width: 80px;">
+                                    ${classOrder.map(c => `<option value="${c}" ${s.class === c ? 'selected' : ''}>${c}</option>`).join('')}
+                                </select>
+                                <small class="text-muted text-nowrap">(${s.group || '-'})</small>
+                            </div>
+                        </td>
+                        <td>
+                            <select class="form-select form-select-sm" onchange="updateUserRole('${s.id}', this.value)">
+                                ${roleOptions.map(opt => `<option value="${opt.val}" ${currentRole === opt.val ? 'selected' : ''}>${opt.label}</option>`).join('')}
+                            </select>
+                            ${renderRoleDetails(s)}
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="resetUserPassword('${s.id}', '${s.name}')">重置密碼</button>
+                            ${(currentUser.role === 'super_admin') ? `<button class="btn btn-sm btn-outline-danger ms-1" onclick="removeStudent('${s.id}')">刪除人員</button>` : ''}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        };
+
+        function renderRoleDetails(s) {
+            if (s.role === 'district_admin' && s.managedClasses) {
+                return `<div class="small text-muted mt-1">管轄: ${s.managedClasses.join(', ')} <i class="bi bi-pencil-square cursor-pointer text-primary" onclick="openRoleConfig('${s.id}', 'district_admin')"></i></div>`;
+            }
+            if (s.role === 'battalion_admin' && s.managedBattalion) {
+                return `<div class="small text-muted mt-1">管轄: ${s.managedBattalion} <i class="bi bi-pencil-square cursor-pointer text-primary" onclick="openRoleConfig('${s.id}', 'battalion_admin')"></i></div>`;
+            }
+            return '';
+        }
+
+        window.updateUserClass = async (uid, newClass) => {
+            if (currentUser.role !== 'super_admin' && currentUser.role !== 'general_admin') {
+                alert("您沒有權限執行此操作。");
+                renderAdminUserList(); // Revert UI
+                return;
+            }
+            try {
+                await updateDoc(doc(db, "students", uid), { class: newClass });
+                const student = studentsData.find(s => s.id === uid);
+                if (student) student.class = newClass;
+            } catch (e) {
+                console.error(e);
+                alert("更新班級失敗: " + e.message);
+                renderAdminUserList();
+            }
+        };
+
+
+        window.updateUserRole = async (uid, newRole) => {
+            if (currentUser.role !== 'super_admin') {
+                alert("您沒有權限執行此操作。");
+                renderAdminUserList(); // Revert
+                return;
+            }
+
+            // Check if config is needed
+            if (['battalion_admin', 'district_admin'].includes(newRole)) {
+                openRoleConfig(uid, newRole);
+                return; // Wait for modal save
+            }
+
+            // Direct update for simple roles
+            try {
+                await updateDoc(doc(db, "students", uid), { role: newRole });
+                const s = studentsData.find(s => s.id === uid);
+                if (s) s.role = newRole;
+                renderAdminUserList();
+            } catch (e) {
+                console.error(e);
+                alert("更新失敗: " + e.message);
+                renderAdminUserList();
+            }
+        };
+
+        window.openRoleConfig = (uid, role) => {
+            const s = studentsData.find(s => s.id === uid);
+            if (!s) return;
+
+            document.getElementById('configTargetId').value = uid;
+            document.getElementById('configTargetRole').value = role;
+            document.getElementById('configTargetName').innerText = `設定 ${s.name} 的 ${ROLE_DEFS[role].label} 權限`;
+
+            // Reset UI
+            document.querySelectorAll('.role-config-section').forEach(el => el.classList.add('d-none'));
+
+            if (role === 'battalion_admin') {
+                document.getElementById('battalionConfig').classList.remove('d-none');
+                document.getElementById('configBattalion').value = s.managedBattalion || "一大隊";
+            } else if (role === 'district_admin') {
+                document.getElementById('districtConfig').classList.remove('d-none');
+                const list = document.getElementById('configClassList');
+                list.innerHTML = classOrder.map(c => `
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="${c}" id="chk_cls_${c}" ${s.managedClasses && s.managedClasses.includes(c) ? 'checked' : ''}>
+                        <label class="form-check-label" for="chk_cls_${c}">${c}</label>
+                    </div>
+                `).join('');
+            } else if (['squadron_admin', 'duty_class'].includes(role)) {
+                // Nothing to set, but let user verify
+                // Actually updateUserRole handles this immediately if not complex. 
+                // But if we want to show info, we can.
+                // Current logic calls this only for complex roles. 
+                // But wait, user might want to assign Duty Class but confirm squadron?
+                // Let's rely on data model: Duty Class uses `squadron` field. 
+            }
+
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('roleConfigModal')).show();
+        };
+
+        window.saveRoleConfig = async () => {
+            const uid = document.getElementById('configTargetId').value;
+            const role = document.getElementById('configTargetRole').value;
+            const updates = { role: role };
+
+            if (role === 'battalion_admin') {
+                updates.managedBattalion = document.getElementById('configBattalion').value;
+            } else if (role === 'district_admin') {
+                const checked = document.querySelectorAll('#configClassList input:checked');
+                updates.managedClasses = Array.from(checked).map(cb => cb.value);
+            }
+
+            try {
+                await updateDoc(doc(db, "students", uid), updates);
+                const s = studentsData.find(s => s.id === uid);
+                if (s) {
+                    s.role = role;
+                    if (updates.managedBattalion) s.managedBattalion = updates.managedBattalion;
+                    if (updates.managedClasses) s.managedClasses = updates.managedClasses;
+                }
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('roleConfigModal')).hide();
+                renderAdminUserList();
+                alert("權限設定已已更新");
+            } catch (e) {
+                console.error(e);
+                alert("儲存失敗: " + e.message);
+            }
+        };
+
+        window.resetUserPassword = async (uid, name) => {
+            if (!confirm(`確定要將 ${name} 的密碼重置為 0000 嗎？`)) return;
+            try {
+                await updateDoc(doc(db, "students", uid), { password: '0000' });
+                alert("密碼已重置為 0000");
+            } catch (e) {
+                console.error(e);
+                alert("重置失敗: " + e.message);
+            }
+        };
+
+        function getRelevantRequests() {
+            if (!currentUser) return [];
+            return pendingRequests.filter(req => {
+                if (req.status !== 'pending') return false;
+
+                const role = currentUser.role;
+
+                // 1. Super / General: All
+                if (role === 'super_admin' || role === 'general_admin') return true;
+
+                // 2. Battalion Admin
+                if (role === 'battalion_admin') {
+                    // Need to check target's squadron -> battalion
+                    return getBattalionFromSquadron(req.studentSquadron) === currentUser.managedBattalion;
+                }
+
+                // 3. Squadron Admin / Duty Class
+                if (role === 'squadron_admin' || role === 'duty_class') {
+                    return req.studentSquadron === currentUser.squadron;
+                }
+
+                // 4. District Admin
+                if (role === 'district_admin') {
+                    return currentUser.managedClasses && currentUser.managedClasses.includes(req.studentClass);
+                }
+
+                // 5. Class Admin
+                if (role === 'class_admin') {
+                    return req.studentClass === currentUser.class;
+                }
+
+                // 6. Group Admin (Dining Only)
+                if (role === 'group_admin') {
+                    const isDining = (req.sessionName === '中午上餐廳' || req.sessionName === '晚上上餐廳');
+                    if (isDining && req.studentGroup === currentUser.group) return true;
+                }
+
+                return false;
+            });
+        }
+        function updateNotificationBadge() {
+            const badge = document.getElementById('notificationBadge');
+            const relevant = getRelevantRequests();
+            const count = relevant.length;
+
+            if (count > 0) {
+                badge.innerText = count;
+                badge.classList.remove('d-none');
+            } else {
+                badge.classList.add('d-none');
+            }
+        }
+
+        // Hook updateNotificationBadge into renderAll/snapshot
+        // Actually better to hook where pendingRequests updates.
+        // I'll add a call to updateNotificationBadge inside the requests snapshot listener in the next step or manually add it here if I can find the listener.
+        // But wait, `renderAll` is called by the listener. So I can just add `updateNotificationBadge()` inside `renderAll`? 
+        // Yes, let's add it to `renderAll` or `updateAuthUI`. 
+        // Since `renderAll` is called frequently, let's put it there. 
+        // However, `renderAll` doesn't have access to this scope easily if strictly separated? 
+        // They are all in module scope. It's fine.
+
+        window.showApprovalModal = () => {
+            const list = document.getElementById('approvalList');
+            const relevant = getRelevantRequests();
+
+            // Show history button for all users (view-only)
+            const historyBtn = document.getElementById('historyBtn');
+            if (historyBtn) {
+                historyBtn.classList.remove('d-none');
+            }
+
+            // Populate Filter Options if empty
+            const filterSel = document.getElementById('approvalClassFilter');
+            if (filterSel && filterSel.options.length === 1) {
+                const opts = [
+                    ...classOrder.map(c => `<option value="${c}">${c}</option>`),
+                    ...groupOrder.map(g => `<option value="${g}">${g}</option>`)
+                ];
+                filterSel.innerHTML += opts.join('');
+            }
+
+            const filterVal = filterSel ? filterSel.value : 'all';
+            const filtered = relevant.filter(req => filterVal === 'all' || req.studentClass === filterVal || req.studentGroup === filterVal);
+
+            if (filtered.length === 0) {
+                list.innerHTML = `<div class="text-center p-4 text-muted">目前沒有待審核的申請</div>`;
+            } else {
+                list.innerHTML = filtered.map(req => `
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="d-flex align-items-center mb-1">
+                                <span class="fw-bold me-2">${req.studentName}</span>
+                                <span class="badge bg-light text-secondary border me-2">${req.studentClass}/${req.studentGroup}</span>
+                                <span class="badge bg-warning text-dark">${req.dayName || ''} ${req.sessionName}</span>
+                            </div>
+                            <div class="small">
+                                <span class="text-muted">由 ${req.requesterName} 申請：</span>
+                                <span class="text-decoration-line-through text-muted mx-1">${req.originStatus}</span>
+                                <i class="bi bi-arrow-right mx-1"></i>
+                                <span class="fw-bold text-danger">${req.newStatus}</span>
+                            </div>
+                            <div class="text-muted" style="font-size: 0.75rem;">${new Date(req.timestamp).toLocaleString()}</div>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <button class="btn btn-success btn-sm me-2" onclick="handleRequest('${req.id}', 'approve')">
+                                <i class="bi bi-check-lg"></i> 批准
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" onclick="handleRequest('${req.id}', 'reject')">
+                                <i class="bi bi-x-lg"></i> 駁回
+                            </button>
+                        </div>
+                    </div>
+            `).join('');
+            }
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('approvalModal')).show();
+        };
+
+        window.batchHandleRequests = async (action) => {
+            const relevant = getRelevantRequests();
+            const filterVal = document.getElementById('approvalClassFilter') ? document.getElementById('approvalClassFilter').value : 'all';
+
+            // Only process currently visible keys
+            const toProcess = relevant.filter(req => filterVal === 'all' || req.studentClass === filterVal || req.studentGroup === filterVal);
+
+            if (toProcess.length === 0) return alert("目前與篩選條件相符的申請為空");
+
+            if (!confirm(`確定要全部 ${action === 'approve' ? '批准' : '駁回'} 共 ${toProcess.length} 筆申請嗎？`)) return;
+
+            try {
+                let count = 0;
+                for (const req of toProcess) {
+                    await addDoc(collection(db, "approval_history"), {
+                        studentId: req.studentId,
+                        studentName: req.studentName,
+                        studentClass: req.studentClass,
+                        studentGroup: req.studentGroup || '',
+                        dayName: req.dayName || '',
+                        sessionName: req.targetSession || req.sessionName,
+                        originStatus: req.originStatus,
+                        newStatus: req.newStatus,
+                        requesterName: req.requesterName || '未知',
+                        processorName: currentUser ? currentUser.name : '系統',
+                        requestTime: req.timestamp || new Date().toISOString(), // Include request time
+                        action: action,
+                        timestamp: new Date().toISOString()
+                    });
+
+                    if (action === 'approve') {
+                        const studentRef = doc(db, "students", req.studentId);
+                        // Fix: Removed trailing space in key
+                        await updateDoc(studentRef, { [`status.${req.targetSession}`]: req.newStatus });
+                    }
+                    await deleteDoc(doc(db, "requests", req.id));
+                    count++;
+                }
+                // alert("批量操作完成");
+                // refreshApprovalModal(); // Will be triggered by listener snapshot
+            } catch (e) {
+                console.error(e);
+                alert("批量操作部分失敗: " + e.message);
+            }
+        };
+
+        window.handleRequest = async (reqId, action) => {
+            const req = pendingRequests.find(r => r.id === reqId);
+            if (!req) return;
+
+            if (!confirm(`確定要 ${action === 'approve' ? '批准' : '駁回'} ${req.studentName} 的申請嗎？`)) return;
+
+            try {
+                await addDoc(collection(db, "approval_history"), {
+                    studentId: req.studentId,
+                    studentName: req.studentName,
+                    studentClass: req.studentClass,
+                    studentGroup: req.studentGroup || '',
+                    dayName: req.dayName || '',
+                    sessionName: req.targetSession || req.sessionName,
+                    originStatus: req.originStatus,
+                    newStatus: req.newStatus,
+                    requesterName: req.requesterName || '未知',
+                    processorName: currentUser ? currentUser.name : '系統',
+                    requestTime: req.timestamp || new Date().toISOString(), // Include request time
+                    action: action,
+                    timestamp: new Date().toISOString()
+                });
+
+                if (action === 'approve') {
+                    // 1. Update Student Data
+                    const studentRef = doc(db, "students", req.studentId);
+                    // Fix: Removed trailing space in key
+                    await updateDoc(studentRef, { [`status.${req.targetSession}`]: req.newStatus });
+
+                    // 2. Delete Request
+                    await deleteDoc(doc(db, "requests", reqId));
+                } else {
+                    // Reject: Just delete request
+                    await deleteDoc(doc(db, "requests", reqId));
+                }
+            } catch (e) {
+                console.error(e);
+                alert("操作失敗: " + e.message);
+            }
+        };
+
+        // Helper to refresh modal list if open
+        window.refreshApprovalModal = () => {
+            console.log("refreshApprovalModal called");
+            const modalEl = document.getElementById('approvalModal');
+            if (modalEl && modalEl.classList.contains('show')) {
+                // Re-use logic from showApprovalModal but only update list
+                const list = document.getElementById('approvalList');
+                const relevant = getRelevantRequests();
+
+                const filterSel = document.getElementById('approvalClassFilter');
+                // Ensure options populated (should be already)
+                if (filterSel && filterSel.options.length === 1) {
+                    const opts = [
+                        ...classOrder.map(c => `<option value="${c}">${c}</option>`),
+                        ...groupOrder.map(g => `<option value="${g}">${g}</option>`)
+                    ];
+                    filterSel.innerHTML += opts.join('');
+                }
+                const filterVal = filterSel ? filterSel.value : 'all';
+                console.log("Filter Value:", filterVal);
+
+                // Safe trim just in case of whitespace
+                const cleanFilterVal = filterVal.trim();
+
+                const filtered = relevant.filter(req => {
+                    if (cleanFilterVal === 'all') return true;
+                    // Check both class and group
+                    const sClass = (req.studentClass || '').trim();
+                    const sGroup = (req.studentGroup || '').trim();
+                    return sClass === cleanFilterVal || sGroup === cleanFilterVal;
+                });
+
+                if (filtered.length === 0) {
+                    list.innerHTML = `<div class="text-center p-4 text-muted">目前沒有待審核的申請</div>`;
+                } else {
+                    list.innerHTML = filtered.map(req => `
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="d-flex align-items-center mb-1">
+                                <span class="fw-bold me-2">${req.studentName}</span>
+                                <span class="badge bg-light text-secondary border me-2">${req.studentClass}/${req.studentGroup}</span>
+                                <span class="badge bg-warning text-dark">${req.dayName || ''} ${req.sessionName}</span>
+                            </div>
+                            <div class="small">
+                                <span class="text-muted">由 ${req.requesterName} 申請：</span>
+                                <span class="text-decoration-line-through text-muted mx-1">${req.originStatus}</span>
+                                <i class="bi bi-arrow-right mx-1"></i>
+                                <span class="fw-bold text-danger">${req.newStatus}</span>
+                            </div>
+                            <div class="text-muted" style="font-size: 0.75rem;">${new Date(req.timestamp).toLocaleString()}</div>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <button class="btn btn-success btn-sm me-2" onclick="handleRequest('${req.id}', 'approve')">
+                                <i class="bi bi-check-lg"></i> 批准
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" onclick="handleRequest('${req.id}', 'reject')">
+                                <i class="bi bi-x-lg"></i> 駁回
+                            </button>
+                        </div>
+                    </div>
+            `).join('');
+                }
+            }
+        };
+
+        window.cancelRequest = async (reqId) => {
+            if (!confirm("確定要取消此變更申請嗎？")) return;
+            try {
+                await deleteDoc(doc(db, "requests", reqId));
+                // UI updates via snapshot
+            } catch (e) {
+                console.error(e);
+                alert("取消失敗: " + e.message);
+            }
+        };
+
+        window.showApprovalHistoryModal = async () => {
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('approvalHistoryModal')).show();
+            const list = document.getElementById('approvalHistoryList');
+            list.innerHTML = `<div class="text-center p-4 text-muted"><span class="spinner-border spinner-border-sm"></span> 載入紀錄中...</div>`;
+
+            try {
+                // Fetch latest 50 records
+                const hq = query(collection(db, "approval_history"), orderBy("timestamp", "desc"), limit(50));
+                const snap = await getDocs(hq);
+                let html = '';
+                if (snap.empty) {
+                    html = `<div class="text-center p-4 text-muted">目前沒有審核紀錄</div>`;
+                } else {
+                    snap.forEach(docSnap => {
+                        const data = docSnap.data();
+                        const timeStr = new Date(data.timestamp).toLocaleString();
+                        const actionBadge = data.action === 'approve' ? '<span class="badge bg-success">已批准</span>' : '<span class="badge bg-danger">已駁回</span>';
+                        html += `
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <div>
+                                    <span class="fw-bold me-2">${data.studentName}</span>
+                                    <span class="badge bg-light text-secondary border me-2">${data.studentClass}/${data.studentGroup}</span>
+                                    <span class="badge bg-warning text-dark">${data.dayName || ''} ${data.sessionName}</span>
+                                </div>
+                                <div>${actionBadge}</div>
+                            </div>
+                            <div class="small">
+                                <span class="text-muted">由 <strong>${data.requesterName}</strong> 於 ${new Date(data.requestTime || data.timestamp).toLocaleString()} 申請：</span>
+                                <span class="text-decoration-line-through text-muted mx-1">${data.originStatus}</span>
+                                <i class="bi bi-arrow-right mx-1"></i>
+                                <span class="fw-bold text-dark">${data.newStatus}</span>
+                            </div>
+                            <div class="small text-muted mt-1">
+                                處理人: <strong>${data.processorName}</strong> 於 ${timeStr} 審核
+                            </div>
+                        </div>`;
+                    });
+                }
+                list.innerHTML = html;
+            } catch (e) {
+                console.error(e);
+                list.innerHTML = `<div class="text-center p-4 text-danger">載入失敗: ${e.message}</div>`;
+            }
+        };
+
+        window.initLogin = (studentId, studentName) => {
+            if (currentUser) return; // Already logged in
+            document.getElementById('loginTargetName').innerText = `登入：${studentName} `;
+            document.getElementById('loginTargetName').dataset.id = studentId; // Restore missing ID setting
+            document.getElementById('loginPassword').value = '';
+            document.getElementById('loginError').innerText = '';
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('loginModal')).show();
+        };
+
+        window.performLogin = async () => {
+            const studentId = document.getElementById('loginTargetName').dataset.id;
+            const password = document.getElementById('loginPassword').value;
+            // Find student data
+            const student = studentsData.find(s => s.id === studentId);
+            if (!student) return;
+
+            if (student.password === password) {
+                currentUser = {
+                    id: student.id,
+                    name: student.name,
+                    role: student.role || 'student',
+                    class: student.class,
+                    group: student.group,
+                    squadron: student.squadron,
+                    dorm: student.dorm || '',
+                    bed: student.bed || ''
+                };
+                sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('loginModal')).hide();
+                updateAuthUI();
+                // Check if password is default
+                if (password === '0000') {
+                    setTimeout(() => {
+                        if (confirm("您目前使用預設密碼，建議立即修改。是否前往修改？")) {
+                            bootstrap.Modal.getOrCreateInstance(document.getElementById('changePasswordModal')).show();
+                        }
+                    }, 500);
+                }
+                // 寢室別+床位：若尚未設定，或超過30天未更新，則詢問
+                {
+                    const today = new Date();
+                    const updatedAt = student.dormUpdatedAt ? new Date(student.dormUpdatedAt) : null;
+                    const daysDiff = updatedAt ? Math.floor((today - updatedAt) / (1000 * 60 * 60 * 24)) : 999;
+                    const needUpdate = !student.dorm || !student.bed || daysDiff >= 30;
+                    if (needUpdate) {
+                        setTimeout(async () => {
+                            const toHalf = str => str.replace(/[Ａ-Ｚａ-ｚ０-９]/g, c =>
+                                String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).trim();
+                            const isFirstTime = !student.dorm || !student.bed;
+                            const prefix = isFirstTime ? '' : '（每月更新）';
+                            let dormInput = prompt(`${prefix}請輸入您的寢室別（如：S112）：`, student.dorm || '');
+                            if (dormInput === null) return;
+                            dormInput = toHalf(dormInput);
+                            let bedInput = prompt(`${prefix}請輸入您的床位（如：A/B/C/D）：`, student.bed || '');
+                            if (bedInput === null) return;
+                            bedInput = toHalf(bedInput);
+                            if (dormInput || bedInput) {
+                                try {
+                                    const todayStr = today.toISOString().slice(0, 10);
+                                    await updateDoc(doc(db, "students", student.id), {
+                                        dorm: dormInput,
+                                        bed: bedInput,
+                                        dormUpdatedAt: todayStr
+                                    });
+                                    currentUser.dorm = dormInput;
+                                    currentUser.bed = bedInput;
+                                    const idx = studentsData.findIndex(s => s.id === student.id);
+                                    if (idx !== -1) {
+                                        studentsData[idx].dorm = dormInput;
+                                        studentsData[idx].bed = bedInput;
+                                        studentsData[idx].dormUpdatedAt = todayStr;
+                                    }
+                                    sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
+                                    renderCurrentView();
+                                } catch (e) {
+                                    console.error('儲存寢室別/床位失敗', e);
+                                }
+                            }
+                        }, 600);
+                    }
+                }
+            } else {
+                document.getElementById('loginError').innerText = "密碼錯誤";
+            }
+        };
+
+        window.showAdminLogin = () => {
+            document.getElementById('adminUsername').value = '';
+            document.getElementById('adminPassword').value = '';
+            document.getElementById('adminLoginError').innerText = '';
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('adminLoginModal')).show();
+        };
+
+        window.performAdminLogin = () => {
+            const u = document.getElementById('adminUsername').value;
+            const p = document.getElementById('adminPassword').value;
+
+            const admins = [
+                { u: 'admin', p: '31415926', name: '管理員', role: 'super_admin' },
+                { u: '2-1', p: 'QAZwsx', name: '值星幹部', role: 'general_admin', customRoleTitle: '值星幹部' }
+            ];
+
+            const match = admins.find(a => a.u === u && a.p === p);
+
+            if (match) {
+                currentUser = {
+                    id: match.u + '_admin_id',
+                    name: match.name,
+                    role: match.role,
+                    customRoleTitle: match.customRoleTitle
+                };
+                sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('adminLoginModal')).hide();
+                updateAuthUI();
+            } else {
+                document.getElementById('adminLoginError').innerText = "帳號或密碼錯誤";
+            }
+        };
+
+        window.logout = () => {
+            currentUser = null;
+            sessionStorage.removeItem('currentUser');
+            updateAuthUI();
+        };
+
+        window.submitChangePassword = async () => {
+            if (!currentUser) return;
+            const oldPass = document.getElementById('oldPass').value;
+            const newPass = document.getElementById('newPass').value;
+            const confirmPass = document.getElementById('confirmPass').value;
+
+            if (newPass !== confirmPass) { alert("兩次新密碼輸入不一致"); return; }
+            if (newPass.length < 4) { alert("密碼太短，請至少輸入4位數"); return; }
+
+            // Super admin special update
+            if (currentUser.role === 'super_admin') {
+                alert("超級管理員密碼請由後台修改");
+                return;
+            }
+
+            // Verify old password by fetching latest data
+            const docRef = doc(db, "students", currentUser.id);
+            const docSnap = await getDocs(query(studentsRef)); // Inefficient but works, better to use getDoc if possible but we have studentsData
+            // Use local check first then overwrite
+            const student = studentsData.find(s => s.id === currentUser.id);
+            if (student.password !== oldPass) {
+                alert("舊密碼錯誤");
+                return;
+            }
+
+            try {
+                await updateDoc(docRef, { password: newPass });
+                alert("密碼修改成功！");
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('changePasswordModal')).hide();
+            } catch (e) {
+                console.error(e);
+                alert("修改失敗");
+            }
+        };
+
+        // Initial check
+        window.addEventListener('load', () => {
+            updateAuthUI();
+        });
+
+        // Note: other functions like addStudent, removeStudent are already assigned to window directly above.
+
+
+
+        function getStatusBadge(s) {
+            if (s === '實到') return '<span class="badge bg-success">實到</span>';
+            if (s === '缺席') return '<span class="badge bg-danger">缺席</span>';
+            if (s === '遲到') return '<span class="badge bg-warning text-dark">遲到</span>';
+            return `<span class="badge bg-info text-dark">${s}</span>`;
+        }
+        // Search Filtering
+        function filterStudents() {
+            const term = document.getElementById('searchInput').value.toLowerCase();
+
+            // Search logic:
+            // 1. If term matches Card Header (Class/Group Name), show the whole card and all rows.
+            // 2. If term matches Student Name, show that row (and its parent card).
+            // 3. Otherwise hide.
+
+            const cards = document.querySelectorAll('#classContainer .card');
+            cards.forEach(card => {
+                const headerText = card.querySelector('.class-header').innerText.toLowerCase();
+                const cardMatchesHeader = headerText.includes(term);
+
+                const rows = card.querySelectorAll('tbody tr');
+                let hasVisibleRow = false;
+
+                rows.forEach(row => {
+                    const name = row.querySelector('.fw-bold').innerText.toLowerCase();
+                    const classGroup = row.querySelector('.badge').innerText.toLowerCase(); // Getting Class/Group text from row badge
+
+                    // Match against: Name OR Class/Group Badge OR (Parent Card Header if matched)
+                    if (cardMatchesHeader || name.includes(term) || classGroup.includes(term)) {
+                        row.classList.remove('d-none');
+                        hasVisibleRow = true;
+                    } else {
+                        row.classList.add('d-none');
+                    }
+                });
+
+                // Visibility of the Card itself
+                if (hasVisibleRow) {
+                    card.parentElement.classList.remove('d-none');
+                } else {
+                    card.parentElement.classList.add('d-none');
+                }
+            });
+        }
+
+        function getStatusColorClass(s) {
+            if (!s || s === '實到') return "text-success border-success bg-white";
+            if (s === '缺席') return "text-danger border-danger bg-white";
+            if (s === '遲到') return "text-warning border-warning bg-white";
+            return "text-secondary border-secondary bg-white";
+        }
+        function getNameColorClass(s) {
+            if (!s || s === '實到') return "text-primary";
+            return "text-danger fw-bolder";
+        }
+        window.migrateOldClasses = async () => {
+            if (!confirm("確定要執行「舊班級名稱 -> 新班級名稱」的資料遷移嗎？\n此操作將會更新所有學生的班級欄位。")) return;
+
+            const mapping = {
+                "一班": "01班", "二班": "02班", "三班": "03班", "四班": "04班",
+                "五班": "05班", "六班": "06班", "七班": "07班", "八班": "08班",
+                "九班": "09班", "十班": "10班", "十一班": "11班", "十二班": "12班"
+            };
+
+            let updateCount = 0;
+            const updates = [];
+
+            studentsData.forEach(s => {
+                if (mapping[s.class]) {
+                    const newClass = mapping[s.class];
+                    // console.log(`Migrating ${ s.name }: ${ s.class } -> ${ newClass } `);
+                    updates.push(updateDoc(doc(db, "students", s.id), { class: newClass }));
+                    updateCount++;
+                }
+            });
+
+            if (updateCount === 0) {
+                alert("沒有發現需要遷移的資料。");
+                return;
+            }
+
+            try {
+                await Promise.all(updates);
+                alert(`遷移完成！共更新了 ${updateCount} 筆資料。\n請重新整理網頁。`);
+                location.reload();
+            } catch (e) {
+                console.error(e);
+                alert("遷移過程發生錯誤：" + e.message);
+            }
+        };
+
+
+
+
+
+        // Enable Drag to Scroll & Wheel to Scroll
+        function enableDragScroll(id) {
+            const slider = document.getElementById(id);
+            let isDown = false;
+            let startX;
+            let scrollLeft;
+
+            slider.addEventListener('mousedown', (e) => {
+                isDown = true;
+                slider.classList.add('active');
+                startX = e.pageX - slider.offsetLeft;
+                scrollLeft = slider.scrollLeft;
+            });
+            slider.addEventListener('mouseleave', () => {
+                isDown = false;
+                slider.classList.remove('active');
+            });
+            slider.addEventListener('mouseup', () => {
+                isDown = false;
+                slider.classList.remove('active');
+            });
+            slider.addEventListener('mousemove', (e) => {
+                if (!isDown) return;
+                e.preventDefault();
+                const x = e.pageX - slider.offsetLeft;
+                const walk = (x - startX) * 2; // Scroll-fast
+                slider.scrollLeft = scrollLeft - walk;
+            });
+            // Convert vertical wheel to horizontal scroll
+            slider.addEventListener('wheel', (e) => {
+                if (e.deltaY !== 0) {
+                    e.preventDefault();
+                    slider.scrollLeft += e.deltaY;
+                }
+            });
+        }
+
+        // Initialize scroll features
+        enableDragScroll('weekTabs');
+        enableDragScroll('sessionTabs');
+
+        // --- Quick Status Feature ---
+
+        window.qsSelectedStudents = new Set();
+        window.qsSelectedStatus = "";
+
+        window.toggleQSStudent = (id) => {
+            const btn = document.getElementById(`qsBtn_${id}`);
+            if (!btn) return;
+            if (qsSelectedStudents.has(id)) {
+                qsSelectedStudents.delete(id);
+                btn.classList.remove('btn-primary', 'text-white');
+                btn.classList.add('btn-outline-primary');
+            } else {
+                qsSelectedStudents.add(id);
+                btn.classList.remove('btn-outline-primary');
+                btn.classList.add('btn-primary', 'text-white');
+            }
+        };
+
+        window.selectAllQSStudents = () => {
+            document.querySelectorAll('[id^="qsBtn_"]').forEach(btn => {
+                const id = btn.id.replace('qsBtn_', '');
+                qsSelectedStudents.add(id);
+                btn.classList.remove('btn-outline-primary');
+                btn.classList.add('btn-primary', 'text-white');
+            });
+        };
+
+        window.clearAllQSStudents = () => {
+            qsSelectedStudents.clear();
+            document.querySelectorAll('[id^="qsBtn_"]').forEach(btn => {
+                btn.classList.remove('btn-primary', 'text-white');
+                btn.classList.add('btn-outline-primary');
+            });
+        };
+
+        window.toggleQSStatus = (status) => {
+            // First, remove active state from all status buttons
+            document.querySelectorAll('[id^="qsStatusBtn_"]').forEach(btn => {
+                btn.classList.remove('btn-danger', 'text-white');
+                btn.classList.add('btn-outline-danger');
+            });
+            // If toggling off the currently selected status
+            if (qsSelectedStatus === status) {
+                qsSelectedStatus = "";
+            } else {
+                // Otherwise set the new status and activate its button
+                qsSelectedStatus = status;
+                const activeBtn = document.getElementById(`qsStatusBtn_${status}`);
+                if (activeBtn) {
+                    activeBtn.classList.remove('btn-outline-danger');
+                    activeBtn.classList.add('btn-danger', 'text-white');
+                }
+            }
+        };
+
+        window.openQuickStatusModal = () => {
+            if (!currentUser) return alert("請先登入！");
+
+            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('quickStatusModal'));
+            const targetClassContainer = document.getElementById('qsTargetClassContainer');
+            const targetStudentContainer = document.getElementById('qsTargetStudentContainer');
+            const dateContainer = document.getElementById('qsDateContainer');
+            const sessionContainer = document.getElementById('qsSessionContainer');
+            const statusGrid = document.getElementById('qsStatusGrid');
+
+            // Reset UI
+            targetClassContainer.classList.add('d-none');
+            targetStudentContainer.classList.add('d-none');
+            document.getElementById('qsTargetClass').innerHTML = '<option value="">請選擇班級</option>';
+            document.getElementById('qsTargetStudentGrid').innerHTML = '<div class="text-muted w-100 text-center">請先選擇班級</div>';
+            qsSelectedStudents.clear();
+            qsSelectedStatus = "";
+
+            dateContainer.innerHTML = '';
+            sessionContainer.innerHTML = '';
+
+            // 1. Setup Target Selection based on Role
+            if (currentUser.role === 'student') {
+                // Student: Target is self (Hidden)
+            } else if (currentUser.role === 'class_admin' || currentUser.role === 'group_admin') {
+                // Class/Group Admin: Show Student Select (Filtered Scope)
+                targetStudentContainer.classList.remove('d-none');
+                updateQuickStatusStudentList(
+                    currentUser.role === 'class_admin' ? 'class' : 'group',
+                    currentUser.role === 'class_admin' ? currentUser.class : currentUser.group
+                );
+            } else {
+                // Super/General/Duty Admin: Show Class + Student Select
+                targetClassContainer.classList.remove('d-none');
+                targetStudentContainer.classList.remove('d-none');
+
+                // Filter available classes to the active squadron tab
+                let activeSq = typeof currentSquadron !== 'undefined' ? currentSquadron : null;
+
+                // Populate Class Select with unique classes in active squadron
+                const classes = [...new Set(studentsData.filter(s => {
+                    if (activeSq) {
+                        if (activeSq === '一大隊' || activeSq === '二大隊') {
+                            const targetSquadrons = battalionStructure[activeSq];
+                            if (targetSquadrons && !targetSquadrons.includes(s.squadron)) return false;
+                        } else if (s.squadron !== activeSq) {
+                            return false;
+                        }
+                    }
+                    return true;
+                }).map(s => s.class))].sort((a, b) => {
+                    const idxA = classOrder.indexOf(a);
+                    const idxB = classOrder.indexOf(b);
+                    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                    return a.localeCompare(b);
+                });
+
+                document.getElementById('qsTargetClass').innerHTML =
+                    `<option value="">請選擇班級</option>` +
+                    classes.map(c => `<option value="${c}">${c}</option>`).join('');
+            }
+
+            // 2. Populate Date Checkboxes
+            const daysOfWeek = ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日'];
+            dateContainer.innerHTML = daysOfWeek.map(d => `
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="checkbox" name="qsDay" value="${d}" id="qsDay_${d}">
+                    <label class="form-check-label" for="qsDay_${d}">${d}</label>
+                </div>
+            `).join('');
+
+            // 3. Populate Session Checkboxes
+            sessionContainer.innerHTML = sessions.map(s => `
+                <div class="form-check form-check-inline mb-2">
+                    <input class="form-check-input" type="checkbox" name="qsSession" value="${s}" id="qsSession_${s}">
+                    <label class="form-check-label" for="qsSession_${s}">${s}</label>
+                </div>
+            `).join('');
+
+            // 4. Populate Status Buttons Grid
+            statusGrid.innerHTML = currentStatuses.map(s =>
+                `<button id="qsStatusBtn_${s}" class="btn btn-outline-danger btn-sm m-1" onclick="toggleQSStatus('${s}')">${stripStatusHtml(s)}</button>`
+            ).join('');
+
+            modal.show();
+        };
+
+        window.updateQuickStatusStudentList = (scopeType, scopeValue) => {
+            qsSelectedStudents.clear();
+            if (!scopeValue) {
+                document.getElementById('qsTargetStudentGrid').innerHTML = '<div class="text-muted w-100 text-center">請選擇班級</div>';
+                return;
+            }
+
+            let activeSquadron = null;
+            if (currentUser) {
+                if (['class_admin', 'group_admin', 'squadron_admin'].includes(currentUser.role)) {
+                    activeSquadron = currentUser.squadron || currentSquadron || null;
+                } else if (typeof currentSquadron !== 'undefined') {
+                    activeSquadron = currentSquadron;
+                }
+            }
+
+            const filteredStudents = studentsData.filter(s => {
+                if (activeSquadron) {
+                    if (activeSquadron === '一大隊' || activeSquadron === '二大隊') {
+                        const targetSquadrons = battalionStructure[activeSquadron];
+                        if (targetSquadrons && (!s.squadron || !targetSquadrons.includes(s.squadron))) return false;
+                    } else if (!s.squadron || s.squadron !== activeSquadron) {
+                        return false;
+                    }
+                }
+
+                if (scopeType === 'class') return s.class === scopeValue;
+                if (scopeType === 'group') return s.group === scopeValue;
+                return false;
+            }).sort((a, b) => (a.timestamp?.seconds || 0) - (b.timestamp?.seconds || 0));
+
+            if (filteredStudents.length === 0) {
+                document.getElementById('qsTargetStudentGrid').innerHTML = '<div class="text-muted w-100 text-center">該項目無學生</div>';
+            } else {
+                document.getElementById('qsTargetStudentGrid').innerHTML =
+                    filteredStudents.map(s => `<button id="qsBtn_${s.id}" class="btn btn-outline-primary btn-sm m-1" onclick="toggleQSStudent('${s.id}')">${s.name} <small style="opacity:0.7">(${s.group || '-'})</small></button>`).join('');
+            }
+        };
+
+        window.submitQuickStatus = async () => {
+            // 1. Gather Data
+            const selectedDays = Array.from(document.querySelectorAll('input[name="qsDay"]:checked')).map(cb => cb.value);
+            const selectedSessions = Array.from(document.querySelectorAll('input[name="qsSession"]:checked')).map(cb => cb.value);
+
+            // 2. Validation
+            if (selectedDays.length === 0) return alert("請至少選擇一個日期");
+            if (selectedSessions.length === 0) return alert("請至少選擇一個時段");
+            if (!qsSelectedStatus) return alert("請選擇差勤狀態");
+
+            let targetIds = [];
+
+            // Identify Target Logic
+            if (currentUser && currentUser.role === 'student') {
+                targetIds.push(currentUser.id);
+            } else {
+                targetIds = Array.from(qsSelectedStudents);
+                if (targetIds.length === 0) return alert("請至少選擇一位目標學生");
+            }
+
+            const isStudentRole = (currentUser && currentUser.role === 'student');
+            let confirmMsg = isStudentRole
+                ? `確定要將自己的狀態在 ${selectedDays.length} 個日期、${selectedSessions.length} 個時段申請設為「${qsSelectedStatus}」嗎？`
+                : `確定要將 ${targetIds.length} 位學生 在 ${selectedDays.length} 個日期、${selectedSessions.length} 個時段的狀態設為「${qsSelectedStatus}」嗎？`;
+
+            if (!confirm(confirmMsg)) return;
+
+            // 3. Execution
+            try {
+                const updates = [];
+                let successCount = 0;
+
+                if (isStudentRole) {
+                    // Request Mode: Create multiple requests
+                    const targetId = currentUser.id;
+                    const targetName = currentUser.name;
+                    for (const day of selectedDays) {
+                        for (const session of selectedSessions) {
+                            const targetKey = `${day}_${session}`;
+                            const reqData = {
+                                studentId: targetId,
+                                studentName: targetName,
+                                studentClass: currentUser.class,
+                                studentGroup: currentUser.group,
+                                requesterId: currentUser.id,
+                                requesterName: currentUser.name,
+                                dayName: day,
+                                sessionName: session,
+                                targetSession: targetKey,
+                                originStatus: "未知",
+                                newStatus: qsSelectedStatus,
+                                status: 'pending',
+                                timestamp: new Date().toISOString()
+                            };
+                            updates.push(addDoc(collection(db, "requests"), reqData));
+                        }
+                    }
+                    await Promise.all(updates);
+                    alert(`已送出 ${updates.length} 筆差勤申請，請通知幹部審核。`);
+                } else {
+                    // Direct Update Mode: Batch updateDocs
+                    for (const targetId of targetIds) {
+                        const statusUpdates = {};
+                        for (const day of selectedDays) {
+                            for (const session of selectedSessions) {
+                                statusUpdates[`status.${day}_${session}`] = qsSelectedStatus;
+                            }
+                        }
+                        updates.push(updateDoc(doc(db, "students", targetId), statusUpdates));
+                        successCount++;
+                    }
+
+                    await Promise.all(updates);
+                    alert(`更新成功！共更新 ${successCount} 位同學。`);
+                }
+
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('quickStatusModal')).hide();
+
+            } catch (e) {
+                console.error(e);
+                alert("操作失敗: " + e.message);
+            }
+        };
+
+        // --- Night Action (夜間行動) Logic ---
+        let naSelectedStudents = new Set();
+
+        window.openNightActionModal = async () => {
+            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('nightActionModal'));
+            naSelectedStudents.clear();
+
+            // Check Lock (21:00)
+            const now = new Date();
+            const hour = now.getHours();
+            const isLocked = hour >= 21;
+
+            const btnIds = ['naAddBtn_LateSleep', 'naAddBtn_Study', 'naAddBtn_LateShower'];
+            btnIds.forEach(id => {
+                const b = document.getElementById(id);
+                if (b) {
+                    if (isLocked) {
+                        b.setAttribute('disabled', 'true');
+                        b.innerHTML = '<i class="bi bi-lock-fill small"></i>';
+                        b.className = "btn btn-secondary btn-sm p-0 px-1";
+                    } else {
+                        b.removeAttribute('disabled');
+                        b.innerHTML = '<i class="bi bi-plus"></i>';
+                        b.className = "btn btn-light btn-sm p-0 px-1";
+                    }
+                }
+            });
+
+            if (isLocked) {
+                document.getElementById('naLockNotice').classList.remove('d-none');
+            } else {
+                document.getElementById('naLockNotice').classList.add('d-none');
+            }
+
+            renderNightActionStudents();
+            await refreshNightActionDisplay();
+            modal.show();
+        };
+
+        function renderNightActionStudents() {
+            const grid = document.getElementById('naStudentGrid');
+            if (!currentUser) {
+                grid.innerHTML = '<div class="text-danger small p-3 w-100 text-center">請登入後操作</div>';
+                return;
+            }
+            console.log("NA Render: currentUser role=", currentUser.role, "squadron=", currentUser.squadron, "class=", currentUser.class);
+            console.log("NA Render: currentSquadron=", currentSquadron);
+
+            // Show only current squadron/class if intern cadre or student, otherwise currentSquadron
+            let targetStudents = studentsData.filter(s => {
+                if (currentUser.role === 'class_admin' || currentUser.role === 'student' || currentUser.role === 'group_admin') {
+                    return s.squadron === currentUser.squadron && s.class === currentUser.class;
+                }
+                return s.squadron === currentSquadron;
+            });
+
+            console.log("NA Render: targetStudents count=", targetStudents.length);
+
+            if (targetStudents.length === 0) {
+                const isRestrictedRole = ['class_admin', 'student', 'group_admin'].includes(currentUser.role);
+                grid.innerHTML = `<div class="text-muted small p-3 w-100 text-center">
+                    目前範圍內無學生資料<br>
+                    <small>(範圍: ${isRestrictedRole ? currentUser.squadron + '/' + currentUser.class : currentSquadron})</small>
+                </div>`;
+                return;
+            }
+
+            grid.innerHTML = targetStudents.map(s => `
+                <button id="naBtn_${s.id}" class="btn btn-outline-primary btn-sm m-1" onclick="toggleNAStudent('${s.id}')">
+                    ${s.name}
+                </button>
+            `).join('');
+        }
+
+        window.toggleNAStudent = (id) => {
+            const btn = document.getElementById(`naBtn_${id}`);
+            console.log("Toggle NA Student:", id);
+            if (naSelectedStudents.has(id)) {
+                naSelectedStudents.delete(id);
+                btn.classList.replace('btn-primary', 'btn-outline-primary');
+                btn.classList.remove('text-white');
+            } else {
+                naSelectedStudents.add(id);
+                btn.classList.replace('btn-outline-primary', 'btn-primary');
+                btn.classList.add('text-white');
+            }
+        };
+
+        window.openNightActionViewModal = () => {
+            refreshNightActionDisplay();
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('nightActionViewModal')).show();
+        };
+
+        window.cancelNightActionSelection = () => {
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('nightActionModal')).hide();
+            setTimeout(() => {
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('nightActionViewModal')).show();
+            }, 300);
+        };
+
+        window.prepNightAction = (type) => {
+            const now = new Date();
+            const h = now.getHours();
+            const m = now.getMinutes();
+            const isAdmin = currentUser && (currentUser.role === 'super_admin');
+            const isTimeLocked = (h > 21 || (h === 21 && m >= 1));
+            const isLocked = !isAdmin && isTimeLocked;
+
+            if (isLocked) {
+                alert("目前時間已過 21:01，系統已鎖定，無法新增！");
+                return;
+            }
+
+            // Warning prompt
+            alert("煩請2100前回報完成");
+
+            naSelectedStudents.clear();
+            window.currentNAType = type;
+            const titleEl = document.getElementById('naModalTitle');
+            if (titleEl) titleEl.innerText = `選擇${type}人員`;
+            renderNightActionStudents();
+
+            // Hide the view modal so they don't overlap, then show the selection modal
+            const viewModalEl = document.getElementById('nightActionViewModal');
+            if (viewModalEl && viewModalEl.classList.contains('show')) {
+                bootstrap.Modal.getInstance(viewModalEl).hide();
+            }
+
+            setTimeout(() => {
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('nightActionModal')).show();
+            }, 300); // slight delay to allow backdrop transition
+        };
+
+        window.proceedToNADetail = () => {
+            if (naSelectedStudents.size === 0) return alert("請先選擇人員");
+            const type = window.currentNAType;
+            document.getElementById('naDetailType').value = type;
+            document.getElementById('naDetailModalTitle').innerText = `${type} - 填寫詳細資料`;
+
+            // 自動帶入寢室別與床位：若選取學生的資料一致則填入
+            const selectedIds = Array.from(naSelectedStudents);
+            const dorms = selectedIds.map(id => {
+                const s = studentsData.find(st => st.id === id);
+                return s ? (s.dorm || '') : '';
+            });
+            const beds = selectedIds.map(id => {
+                const s = studentsData.find(st => st.id === id);
+                return s ? (s.bed || '') : '';
+            });
+            const allSameDorm = dorms.length > 0 && dorms.every(d => d && d === dorms[0]);
+            const allSameBed = beds.length > 0 && beds.every(b => b && b === beds[0]);
+            document.getElementById('naDorm').value = allSameDorm ? dorms[0] : '';
+            document.getElementById('naBed').value = allSameBed ? beds[0] : '';
+
+            // Hide selection modal, show detail modal
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('nightActionModal')).hide();
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('nightActionDetailModal')).show();
+        };
+
+        window.submitNightActionDetail = async () => {
+            const type = document.getElementById('naDetailType').value;
+            const dorm = document.getElementById('naDorm').value.trim();
+            const bed = document.getElementById('naBed').value.trim();
+            const time = document.getElementById('naTime').value.trim();
+            const reason = document.getElementById('naReason').value.trim();
+
+            if (!bed || !time) return alert("請完整填寫床位與時間");
+            if (time.length !== 4 || isNaN(time)) return alert("時間請輸入四位數字 (如: 2200)");
+
+            try {
+                const batch = [];
+                const studentIds = Array.from(naSelectedStudents);
+                const dateKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+
+                for (const sid of studentIds) {
+                    const student = studentsData.find(s => s.id === sid);
+                    const ref = doc(collection(db, "nightActions"));
+                    batch.push(addDoc(collection(db, "nightActions"), {
+                        date: dateKey,
+                        squadron: student.squadron,
+                        class: student.class,
+                        studentId: sid,
+                        studentName: student.name,
+                        type: type,
+                        dorm: dorm,
+                        bed: bed,
+                        time: time,
+                        reason: reason,
+                        timestamp: serverTimestamp()
+                    }));
+                }
+
+                await Promise.all(batch);
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('nightActionDetailModal')).hide();
+
+                // Clear inputs
+                document.getElementById('naDorm').value = '';
+                document.getElementById('naBed').value = '';
+                document.getElementById('naTime').value = '';
+                document.getElementById('naReason').value = '';
+
+                // Refresh and show the view modal again
+                await refreshNightActionDisplay();
+                setTimeout(() => {
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById('nightActionViewModal')).show();
+                }, 300);
+            } catch (e) {
+                console.error(e);
+                alert("登錄失敗: " + e.message);
+            }
+        };
+
+        async function refreshNightActionDisplay() {
+            const dateKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+
+            // Sync squadron logic with student grid
+            let targetSquadron = currentSquadron;
+            if (currentUser && currentUser.role === 'class_admin' && currentUser.squadron) {
+                targetSquadron = currentUser.squadron;
+            }
+
+            const q = query(collection(db, "nightActions"),
+                where("date", "==", dateKey),
+                where("squadron", "==", targetSquadron));
+
+            const snap = await getDocs(q);
+            const data = { "延長就寢": [], "夜讀人員": [], "延盥人員": [] };
+
+            snap.forEach(docSnap => {
+                const item = docSnap.data();
+                item.docId = docSnap.id;
+                if (data[item.type]) data[item.type].push(item);
+            });
+
+            // Check Lock (21:01) 
+            const now = new Date();
+            const h = now.getHours();
+            const m = now.getMinutes();
+            const isAdmin = currentUser && (currentUser.role === 'super_admin');
+            const isTimeLocked = (h > 21 || (h === 21 && m >= 1));
+            const isLocked = !isAdmin && isTimeLocked;
+
+            // Update Add Buttons in the modal
+            const btnIds = {
+                "延長就寢": 'btn-add-late-sleep',
+                "夜讀人員": 'btn-add-study',
+                "延盥人員": 'btn-add-late-shower'
+            };
+
+            for (const [type, id] of Object.entries(btnIds)) {
+                const b = document.getElementById(id);
+                if (b) {
+                    if (isLocked) {
+                        b.setAttribute('disabled', 'true');
+                        b.innerHTML = '<i class="bi bi-lock-fill me-1"></i>系統已鎖定';
+                    } else {
+                        b.removeAttribute('disabled');
+                        b.innerHTML = `<i class="bi bi-plus-lg me-1"></i>新增${type}`;
+                    }
+                }
+            }
+
+            const renderTableBody = (type) => {
+                const list = data[type] || [];
+                if (list.length === 0) return '<tr><td colspan="6" class="text-center text-muted py-3">目前無資料</td></tr>';
+                return list.map(item => `
+                    <tr>
+                        <td>${item.dorm || '-'}</td>
+                        <td>${item.bed || '-'}</td>
+                        <td class="fw-bold">${item.studentName}</td>
+                        <td><span class="badge bg-secondary">${item.time || '-'}</span></td>
+                        <td>${item.reason || '-'}</td>
+                        <td class="text-end">
+                            ${!isLocked ? `<button class="btn btn-outline-danger btn-sm" onclick="deleteNightAction('${item.docId}')"><i class="bi bi-trash"></i></button>` : '<i class="bi bi-lock text-muted"></i>'}
+                        </td>
+                    </tr>
+                `).join('');
+            };
+
+            const tbSleep = document.getElementById('naTable_LateSleep');
+            if (tbSleep) tbSleep.innerHTML = renderTableBody("延長就寢");
+            const tbShower = document.getElementById('naTable_LateShower');
+            if (tbShower) tbShower.innerHTML = renderTableBody("延盥人員");
+            const tbStudy = document.getElementById('naTable_Study');
+            if (tbStudy) tbStudy.innerHTML = renderTableBody("夜讀人員");
+        }
+
+        window.deleteNightAction = async (docId) => {
+            if (!confirm('確定刪除此夜間行動紀錄？')) return;
+            try {
+                await deleteDoc(doc(db, "nightActions", docId));
+                // 重新整理顯示
+                await refreshNightActionDisplay();
+            } catch (e) {
+                console.error("刪除失敗", e);
+                alert("刪除失敗: " + e.message);
+            }
+        };
+
+
+        window.updateStatusOverview = (stats) => {
+            const statsContainer = document.getElementById('statusStatsSection');
+            const naSection = document.getElementById('nightActionSection');
+            const dropdownContainer = document.getElementById('statusOverviewTags');
+
+            if (!statsContainer) return;
+
+            // 1. Render Stats
+            let statsHtml = `
+                <div class="d-flex align-items-center text-nowrap">
+                    <span class="text-muted small me-2">應到</span>
+                    <span class="h4 mb-0 fw-bold">${stats.total}</span>
+                </div>
+                <div class="d-flex align-items-center text-nowrap">
+                    <span class="text-muted small me-2">實到</span>
+                    <span class="h4 mb-0 fw-bold text-success">${stats.present}</span>
+                </div>
+            `;
+
+            if (stats.absent > 0) {
+                statsHtml += `
+                    <div class="d-flex align-items-center text-nowrap">
+                        <span class="text-muted small me-2">缺席</span>
+                        <span class="h4 mb-0 fw-bold text-danger">${stats.absent}</span>
+                    </div>
+                `;
+            }
+
+            if (stats.present < stats.total && stats.absent === 0) {
+                statsHtml += `<div class="ms-3 ps-3 border-start d-flex align-items-center"><span class="badge bg-success">全員實到</span></div>`;
+            }
+
+            statsContainer.innerHTML = statsHtml;
+
+            // 2. Refresh inline data silently in BG (or prepare memory cache for modal)
+            refreshNightActionDisplay();
+
+            // 3. Render Dropdown & Buttons
+            if (!dropdownContainer) return;
+            let html = '';
+            const statuses = Object.keys(stats.byStudents).filter(s => s !== '實到' && stats.byStatus[s] > 0);
+
+            if (statuses.length === 0) {
+                html = '<div class="text-muted small w-100 text-center py-2 border-bottom mb-2">目前無差勤紀錄</div>';
+            } else {
+                let dropdownItems = statuses.map(status => {
+                    const count = stats.byStatus[status];
+                    return `<li><a class="dropdown-item d-flex justify-content-between align-items-center" href="#" onclick="showStatusDetail('${status}')">
+                                ${status} <span class="badge bg-primary rounded-pill">${count}</span>
+                            </a></li>`;
+                }).join('');
+
+                html = `
+                    <div class="dropdown w-100 mb-2">
+                        <button class="btn btn-outline-primary btn-sm dropdown-toggle w-100" type="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-list-check me-1"></i>查看各差勤名單
+                        </button>
+                        <ul class="dropdown-menu shadow-sm w-100" style="max-height: 300px; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; touch-action: pan-y;">
+                            ${dropdownItems}
+                        </ul>
+                    </div>
+                `;
+            }
+
+            // Append Night Action Button
+            html += `
+                <button class="btn btn-outline-secondary btn-sm w-100" onclick="openNightActionViewModal()">
+                    <i class="bi bi-moon-stars-fill text-warning me-1"></i>查看夜間行動
+                </button>
+            `;
+            dropdownContainer.innerHTML = html;
+        };
+
+        window.showStatusDetail = (status) => {
+            if (!window.currentGlobalStats || !window.currentGlobalStats.byStudents[status]) return;
+
+            const students = window.currentGlobalStats.byStudents[status];
+            document.getElementById('statusDetailTitle').innerText = `${status}名單`;
+            document.getElementById('statusDetailCount').innerText = students.length;
+
+            const listContainer = document.getElementById('statusDetailList');
+            if (students.length === 0) {
+                listContainer.innerHTML = '<li class="list-group-item text-muted text-center py-4">無名單資料</li>';
+            } else {
+                // Sort array according to: 中隊 -> 班級 -> 組別 -> 姓名
+                const sortedStudents = [...students].sort((a, b) => {
+                    // Try to use existing orders
+                    const sqIndexA = squadronOrder.indexOf(a.squadron);
+                    const sqIndexB = squadronOrder.indexOf(b.squadron);
+                    if (sqIndexA !== sqIndexB && sqIndexA !== -1 && sqIndexB !== -1) return sqIndexA - sqIndexB;
+
+                    const clsIndexA = classOrder.indexOf(a.class);
+                    const clsIndexB = classOrder.indexOf(b.class);
+                    if (clsIndexA !== clsIndexB && clsIndexA !== -1 && clsIndexB !== -1) return clsIndexA - clsIndexB;
+
+                    const grpIndexA = groupOrder.indexOf(a.group);
+                    const grpIndexB = groupOrder.indexOf(b.group);
+                    if (grpIndexA !== grpIndexB && grpIndexA !== -1 && grpIndexB !== -1) return grpIndexA - grpIndexB;
+
+                    // Fallback string compare
+                    const sqCmp = (a.squadron || '').localeCompare(b.squadron || '');
+                    if (sqCmp !== 0) return sqCmp;
+                    const clCmp = (a.class || '').localeCompare(b.class || '');
+                    if (clCmp !== 0) return clCmp;
+                    const grpCmp = (a.group || '').localeCompare(b.group || '');
+                    if (grpCmp !== 0) return grpCmp;
+                    return (a.name || '').localeCompare(b.name || '');
+                });
+
+                listContainer.innerHTML = sortedStudents.map(s => {
+                    const badgeUnit = s.squadron ? `${s.squadron} / ${s.class}` : s.class;
+                    return `<li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span class="badge bg-light text-secondary border">${badgeUnit} / ${s.group || '-'}</span>
+                        <div>
+                            <span class="fw-bold fs-6 text-dark">${s.name}</span>
+                        </div>
+                    </li>`;
+                }).join('');
+            }
+
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('statusDetailModal')).show();
+        };
+
+        // Real-time Night Action lock checker (runs every 10 seconds)
+        setInterval(() => {
+            const now = new Date();
+            const h = now.getHours();
+            const m = now.getMinutes();
+            const isAdmin = currentUser && (currentUser.role === 'super_admin');
+            const isTimeLocked = (h > 21 || (h === 21 && m >= 1));
+
+            if (isTimeLocked && !isAdmin) {
+                const viewModalEl = document.getElementById('nightActionViewModal');
+                // Only force refresh if the modal is actively being viewed to avoid background overhead
+                if (viewModalEl && viewModalEl.classList.contains('show')) {
+                    refreshNightActionDisplay();
+                }
+            }
+        }, 10000);
+
+        // --- 寢室資料匯出功能 ---
+        window.openChangeDormModal = () => {
+            if (!currentUser || currentUser.role === 'super_admin' || currentUser.role === 'general_admin') {
+                if (!currentUser) return alert('請先登入');
+            }
+            const toHalf = str => str.replace(/[Ａ-Ｚａ-ｚ０-９]/g, c =>
+                String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).trim();
+            document.getElementById('changeDormInput').value = currentUser.dorm || '';
+            document.getElementById('changeBedInput').value = currentUser.bed || '';
+            document.getElementById('changeDormError').innerText = '';
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('changeDormModal')).show();
+        };
+
+        window.submitChangeDorm = async () => {
+            if (!currentUser) return;
+            const toHalf = str => str.replace(/[Ａ-Ｚａ-ｚ０-９]/g, c =>
+                String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).trim();
+            const dorm = toHalf(document.getElementById('changeDormInput').value);
+            const bed = toHalf(document.getElementById('changeBedInput').value);
+            const errEl = document.getElementById('changeDormError');
+            if (!dorm && !bed) { errEl.innerText = '請至少填寫一項'; return; }
+            errEl.innerText = '';
+            try {
+                const todayStr = new Date().toISOString().slice(0, 10);
+                await updateDoc(doc(db, 'students', currentUser.id), {
+                    dorm: dorm,
+                    bed: bed,
+                    dormUpdatedAt: todayStr
+                });
+                currentUser.dorm = dorm;
+                currentUser.bed = bed;
+                const idx = studentsData.findIndex(s => s.id === currentUser.id);
+                if (idx !== -1) {
+                    studentsData[idx].dorm = dorm;
+                    studentsData[idx].bed = bed;
+                    studentsData[idx].dormUpdatedAt = todayStr;
+                }
+                sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('changeDormModal')).hide();
+                renderCurrentView();
+                alert(`已儲存：寢室 ${dorm}，床位 ${bed}`);
+            } catch (e) {
+                console.error('儲存失敗', e);
+                errEl.innerText = '儲存失敗：' + e.message;
+            }
+        };
+
+        window.openExportDormModal = () => {
+
+            if (!currentUser) return alert('請先登入');
+            const canExport = ['super_admin', 'general_admin', 'class_admin'].includes(currentUser.role);
+            if (!canExport) return alert('權限不足');
+            const scopeSel = document.getElementById('exportDormScope');
+            if (currentUser.role === 'class_admin') scopeSel.value = 'squadron';
+            const updatePreview = () => {
+                const rows = getDormRows(scopeSel.value);
+                const preview = document.getElementById('exportDormPreview');
+                preview.textContent = rows.length === 0 ? '（目前範圍內無寢室資料）'
+                    : ['姓名\t寢室別\t床位', ...rows.map(r => `${r.name}\t${r.dorm}\t${r.bed}`)].join('\n');
+            };
+            scopeSel.onchange = updatePreview;
+            updatePreview();
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('exportDormModal')).show();
+        };
+
+        function getDormRows(scope) {
+            let list = studentsData.filter(s => s.dorm || s.bed);
+            if (scope === 'squadron') {
+                let sq = currentSquadron;
+                if (currentUser && currentUser.squadron) sq = currentUser.squadron;
+                list = list.filter(s => s.squadron === sq);
+            }
+            list.sort((a, b) => {
+                const sqA = squadronOrder.indexOf(a.squadron), sqB = squadronOrder.indexOf(b.squadron);
+                if (sqA !== sqB && sqA !== -1 && sqB !== -1) return sqA - sqB;
+                const clA = classOrder.indexOf(a.class), clB = classOrder.indexOf(b.class);
+                if (clA !== clB && clA !== -1 && clB !== -1) return clA - clB;
+                return (a.name || '').localeCompare(b.name || '');
+            });
+            return list.map(s => ({ name: s.name || '', dorm: s.dorm || '', bed: s.bed || '' }));
+        }
+
+        window.doExportDorm = () => {
+            const scope = document.getElementById('exportDormScope').value;
+            const rows = getDormRows(scope);
+            if (rows.length === 0) return alert('目前範圍內無寢室資料可匯出');
+            const cell = v => `<Cell><Data ss:Type="String">${String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;')}</Data></Cell>`;
+            const row = (...vals) => `\n      <Row>${vals.map(cell).join('')}</Row>`;
+            const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<?mso-application progid="Excel.Sheet"?>\n<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">\n  <Worksheet ss:Name="寢室資料">\n    <Table>${row('姓名', '寢室別', '床位')}${rows.map(r => row(r.name, r.dorm, r.bed)).join('')}\n    </Table>\n  </Worksheet>\n</Workbook>`;
+            const blob = new Blob(['\uFEFF' + xml], { type: 'application/vnd.ms-excel;charset=utf-8' });
+            const a = document.createElement('a');
+            const d = new Date();
+            a.href = URL.createObjectURL(blob);
+            a.download = `寢室資料_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.xls`;
+            a.click();
+        };
+
+    </script>
+    <!-- Night Action Modal (夜間行動) -->
+    <div class="modal fade" id="nightActionModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title" id="naModalTitle"><i class="bi bi-moon-stars-fill me-2"></i>夜間行動 (1. 選擇人員)
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white"
+                        onclick="cancelNightActionSelection()"></button>
+                </div>
+                <div class="modal-body bg-light">
+                    <div id="naLockNotice" class="alert alert-danger d-none mb-3">
+                        <i class="bi bi-lock-fill me-2"></i>目前時間已過 21:01，系統已鎖定。
+                    </div>
+
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-primary text-white">
+                            <h6 class="mb-0">選擇人員</h6>
+                        </div>
+                        <div class="card-body p-2">
+                            <div id="naStudentGrid" class="d-flex flex-wrap overflow-auto" style="max-height: 400px;">
+                                <!-- JS Generated -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="cancelNightActionSelection()">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="proceedToNADetail()">下一步：填寫資料</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Night Action Detail Modal -->
+    <div class="modal fade" id="nightActionDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h6 class="modal-title" id="naDetailModalTitle">詳細資料</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="naDetailType">
+                    <div class="mb-3">
+                        <label class="form-label small">寢室別 <span class="text-muted">(已自動帶入)</span></label>
+                        <input type="text" id="naDorm" class="form-control form-control-sm" placeholder="如: S112">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">床位 <span class="text-muted">(已自動帶入)</span></label>
+                        <input type="text" id="naBed" class="form-control form-control-sm" placeholder="如: 3">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">時間 (四位數)</label>
+                        <input type="text" id="naTime" class="form-control form-control-sm" placeholder="如: 2200"
+                            maxlength="4">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">備註原因</label>
+                        <input type="text" id="naReason" class="form-control form-control-sm"
+                            placeholder="如: 洗衣服、看書、整理內務">
+                    </div>
+                    <button class="btn btn-primary btn-sm w-100" onclick="submitNightActionDetail()">確定送出</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Night Action View Modal -->
+    <div class="modal fade" id="nightActionViewModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title"><i class="bi bi-moon-stars-fill me-2 text-warning"></i>夜間行動總覽</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <ul class="nav nav-tabs nav-justified" id="naViewTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active fw-bold text-dark" id="tab-late-sleep" data-bs-toggle="tab"
+                                data-bs-target="#content-late-sleep" type="button" role="tab">延長就寢</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-bold text-dark" id="tab-late-shower" data-bs-toggle="tab"
+                                data-bs-target="#content-late-shower" type="button" role="tab">延長盥洗</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-bold text-dark" id="tab-study" data-bs-toggle="tab"
+                                data-bs-target="#content-study" type="button" role="tab">夜讀人員</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content" id="naViewTabContent">
+                        <!-- Late Sleep Tab -->
+                        <div class="tab-pane fade show active" id="content-late-sleep" role="tabpanel">
+                            <div class="p-3 text-end bg-light border-bottom">
+                                <button class="btn btn-primary btn-sm" id="btn-add-late-sleep"
+                                    onclick="prepNightAction('延長就寢')"><i class="bi bi-plus-lg me-1"></i>新增延長就寢</button>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>寢室</th>
+                                            <th>床位</th>
+                                            <th>姓名</th>
+                                            <th>時間</th>
+                                            <th>原因</th>
+                                            <th class="text-end">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="naTable_LateSleep"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <!-- Late Shower Tab -->
+                        <div class="tab-pane fade" id="content-late-shower" role="tabpanel">
+                            <div class="p-3 text-end bg-light border-bottom">
+                                <button class="btn btn-primary btn-sm" id="btn-add-late-shower"
+                                    onclick="prepNightAction('延盥人員')"><i class="bi bi-plus-lg me-1"></i>新增延長盥洗</button>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>寢室</th>
+                                            <th>床位</th>
+                                            <th>姓名</th>
+                                            <th>時間</th>
+                                            <th>原因</th>
+                                            <th class="text-end">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="naTable_LateShower"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <!-- Study Tab -->
+                        <div class="tab-pane fade" id="content-study" role="tabpanel">
+                            <div class="p-3 text-end bg-light border-bottom">
+                                <button class="btn btn-primary btn-sm" id="btn-add-study"
+                                    onclick="prepNightAction('夜讀人員')"><i class="bi bi-plus-lg me-1"></i>新增夜讀人員</button>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>寢室</th>
+                                            <th>床位</th>
+                                            <th>姓名</th>
+                                            <th>時間</th>
+                                            <th>原因</th>
+                                            <th class="text-end">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="naTable_Study"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Detail Modal -->
+    <div class="modal fade" id="statusDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="bi bi-people-fill me-2"></i><span
+                            id="statusDetailTitle">差勤名單</span></h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <ul class="list-group list-group-flush" id="statusDetailList">
+                        <!-- JS Generated -->
+                    </ul>
+                </div>
+                <div class="modal-footer py-1 px-3">
+                    <small class="text-muted w-100 text-end">共計 <span id="statusDetailCount" class="fw-bold">0</span>
+                        人</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+
+<!-- Quick Status Modal -->
+<div class="modal fade" id="quickStatusModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-lightning-fill me-2"></i>快速差勤設定</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Target Selection -->
+                <div id="qsTargetClassContainer" class="mb-3 d-none">
+                    <label class="form-label fw-bold">選擇班級</label>
+                    <select id="qsTargetClass" class="form-select"
+                        onchange="updateQuickStatusStudentList('class', this.value)"></select>
+                </div>
+                <div id="qsTargetStudentContainer" class="mb-3 d-none">
+                    <label class="form-label fw-bold">選擇學生 <span class="text-primary small">(可點擊多選)</span></label>
+                    <div class="d-flex mb-2">
+                        <button class="btn btn-sm btn-outline-secondary me-2"
+                            onclick="selectAllQSStudents()">全選</button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="clearAllQSStudents()">清除選擇</button>
+                    </div>
+                    <div id="qsTargetStudentGrid" class="border rounded p-2 bg-light d-flex flex-wrap gap-2"
+                        style="max-height: 250px; overflow-y: auto;">
+                        <div class="text-muted w-100 text-center">請先選擇班級</div>
+                    </div>
+                </div>
+
+                <!-- Date Selection -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">選擇日期 (可多選)</label>
+                    <div id="qsDateContainer" class="border rounded p-2 bg-light"></div>
+                </div>
+
+                <!-- Session Selection -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">選擇時段 (可多選)</label>
+                    <div id="qsSessionContainer" class="border rounded p-2 bg-light"></div>
+                </div>
+
+                <!-- Status Selection -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">設定差勤狀態 <span class="text-danger small">(點擊選擇)</span></label>
+                    <div id="qsStatusGrid" class="border rounded p-2 bg-light d-flex flex-wrap gap-2"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="submitQuickStatus()">確認送出</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 寢室資料匯出 Modal -->
+<div class="modal fade" id="exportDormModal" tabindex="-1">
+    <div class="modal-dialog modal-md">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-file-earmark-excel me-2"></i>匯出寢室資料</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label small fw-bold">篩選範圍</label>
+                    <select id="exportDormScope" class="form-select form-select-sm">
+                        <option value="all">全部人員</option>
+                        <option value="squadron">目前中隊</option>
+                    </select>
+                </div>
+                <div id="exportDormPreview" class="border rounded p-2 bg-light"
+                    style="max-height:300px;overflow-y:auto;font-family:monospace;font-size:0.85em;white-space:pre;">
+                    <!-- Preview -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-success" onclick="doExportDorm()"><i
+                        class="bi bi-download me-1"></i>下載 Excel</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- 更改寢室別與床位 Modal -->
+<div class="modal fade" id="changeDormModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title"><i class="bi bi-house-door me-2"></i>更改寢室別與床位</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label small">寢室別</label>
+                    <input type="text" id="changeDormInput" class="form-control form-control-sm" placeholder="如: S112">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small">床位</label>
+                    <input type="text" id="changeBedInput" class="form-control form-control-sm"
+                        placeholder="如: A/B/C/D">
+                </div>
+                <div id="changeDormError" class="text-danger small"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="submitChangeDorm()">儲存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+</html>
