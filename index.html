@@ -136,6 +136,13 @@
             }
         }
     </style>
+    <!-- EmailJS SDK -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+    <script type="text/javascript">
+        (function() {
+            emailjs.init("lDn0uId0VWcYo8EIi");
+        })();
+    </script>
 </head>
 
 <body class="bg-light">
@@ -437,10 +444,6 @@
                     <input type="password" id="loginPassword" class="form-control text-center mb-3"
                         placeholder="請輸入密碼 (預設0000)" onkeydown="if(event.key === 'Enter') performLogin()">
                     <p id="loginError" class="text-danger small text-center mb-0" style="min-height: 20px;"></p>
-                    <div id="loginHintContainer" class="text-center mt-2 d-none">
-                        <button class="btn btn-link btn-sm text-decoration-none p-0" onclick="showLoginHint()">密碼提示</button>
-                        <div id="loginHintText" class="text-muted small mt-1" style="display:none; font-style: italic;"></div>
-                    </div>
                     <!-- Forgot Password Section -->
                     <div id="forgotPasswordContainer" class="mt-3 p-2 border rounded bg-light d-none">
                         <div class="small fw-bold mb-2"><i class="bi bi-envelope-at me-1"></i>忘記密碼？</div>
@@ -3748,10 +3751,7 @@
             bootstrap.Modal.getOrCreateInstance(document.getElementById('loginModal')).show();
         };
 
-        window.showLoginHint = () => {
-            const hintText = document.getElementById('loginHintText');
-            hintText.style.display = 'block';
-        };
+
 
         // --- Password Recovery Logic ---
         let loginFailCount = 0;
@@ -3797,12 +3797,21 @@
                     mustChange: true
                 });
                 
-                // Simulate Email Sending
-                alert(`臨時密碼已寄送至您的信箱：\n\n${tempPass}\n\n(註：此為模擬提示，實際環境中應透過郵件寄送)`);
+                // 2. Send Real Email via EmailJS
+                // IMPORTANT: Replace 'YOUR_SERVICE_ID' and 'YOUR_TEMPLATE_ID' with your actual IDs
+                const templateParams = {
+                    to_name: student.name,
+                    to_email: student.email,
+                    temp_password: tempPass
+                };
+
+                await emailjs.send('service_t61mjz8', 'template_8yvxadg', templateParams);
+                
+                alert(`臨時密碼已成功發送至您的信箱：${student.email}\n\n請查收並立即登入修改。`);
                 
                 // Hide forgot password UI after success
                 document.getElementById('forgotPasswordContainer').classList.add('d-none');
-                document.getElementById('loginPassword').value = tempPass; // Pre-fill for convenience
+                document.getElementById('loginPassword').value = tempPass; 
             } catch (e) {
                 console.error(e);
                 alert("重置失敗，請稍後再試。");
