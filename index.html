@@ -3785,14 +3785,22 @@
                 });
                 
                 // 2. Send Real Email via EmailJS
-                // IMPORTANT: Replace 'YOUR_SERVICE_ID' and 'YOUR_TEMPLATE_ID' with your actual IDs
+                // 強制轉換為字串，確保傳輸無誤
+                const targetEmail = String(student.email).trim();
                 const templateParams = {
-                    to_name: student.name,
-                    to_email: student.email,
-                    temp_password: tempPass
+                    to_name: String(student.name),
+                    to_email: targetEmail,
+                    email: targetEmail,
+                    user_email: targetEmail,
+                    reply_to: targetEmail,
+                    to: targetEmail,
+                    temp_password: String(tempPass)
                 };
 
-                await emailjs.send('service_t61mjz8', 'template_8yvxadg', templateParams);
+                console.log("📧 準備發送 EmailJS，參數：", templateParams);
+
+                // 直接在發送時帶入 Public Key，避免全域變數失效
+                await emailjs.send('service_t61mjz8', 'template_8yvxadg', templateParams, 'lDn0uId0VWcYo8EIi');
                 
                 alert(`臨時密碼已成功發送至您的信箱：${student.email}\n\n請查收並立即登入修改。`);
                 
