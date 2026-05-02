@@ -3800,8 +3800,10 @@
                 document.getElementById('forgotPasswordContainer').classList.add('d-none');
                 document.getElementById('loginPassword').value = tempPass; 
             } catch (e) {
-                console.error(e);
-                alert("重置失敗，請稍後再試。");
+                console.error("Reset Error Details:", e);
+                // EmailJS errors often have e.text, Firebase has e.message
+                const errorMsg = e.text || e.message || String(e);
+                alert("重置失敗，請提供此錯誤訊息給開發人員：\n\n" + errorMsg);
             } finally {
                 btn.disabled = false;
                 btn.innerText = "獲取臨時密碼";
