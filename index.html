@@ -4823,14 +4823,13 @@
             }
 
             grid.innerHTML = targetStudents.map(s => `
-                <button id="naBtn_${s.id}" class="btn ${naSelectedStudents.has(s.id) ? 'btn-primary text-white' : 'btn-outline-primary'} btn-sm m-1" onclick="toggleNAStudent('${s.id}')">
+                <button class="btn ${naSelectedStudents.has(s.id) ? 'btn-primary text-white' : 'btn-outline-primary'} btn-sm m-1" onclick="toggleNAStudent(this, '${s.id}')">
                     ${s.name}
                 </button>
             `).join('');
         }
 
-        window.toggleNAStudent = (id) => {
-            const btn = document.getElementById(`naBtn_${id}`);
+        window.toggleNAStudent = (btn, id) => {
             if (!btn) return;
             
             if (naSelectedStudents.has(id)) {
