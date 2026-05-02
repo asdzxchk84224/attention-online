@@ -13,6 +13,36 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
+        /* Management UI Custom Toggles */
+        .btn-check:checked + .btn-outline-custom-danger {
+            background-color: #dc3545 !important;
+            color: white !important;
+            border-color: #dc3545 !important;
+        }
+        .btn-outline-custom-danger {
+            color: #dc3545;
+            border-color: #dc3545;
+        }
+        .btn-outline-custom-danger:hover {
+            background-color: #dc3545;
+            color: white;
+        }
+        
+        .mgmt-day-label {
+            cursor: pointer;
+            width: 28px;
+            height: 28px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.2s;
+        }
+        .btn-check:checked + .mgmt-day-label {
+            background-color: #198754 !important; /* success green */
+            color: white !important;
+        }
+
         .stat-card {
             background: #fff;
             border-radius: 12px;
@@ -327,7 +357,8 @@
                             <div class="form-floating">
                                 <select id="inputSquadron" class="form-select" onchange="updateAddStudentLabels()">
                                     <optgroup label="管理單位">
-                                        <option value="管理階層">管理階層</option>
+                                        <option value="一大隊管理階層">一大隊管理階層</option>
+                                        <option value="二大隊管理階層">二大隊管理階層</option>
                                     </optgroup>
                                     <optgroup label="一大隊">
                                         <option value="一大隊大隊部">一大隊大隊部</option>
@@ -868,8 +899,10 @@
 
         // Helper: Get status list for a specific squadron, falling back to global
         function getStatusList(squadronName) {
-            if (squadronName && statusConfigCache[squadronName]) {
-                return statusConfigCache[squadronName];
+            // 防呆：如果該中隊有設定，且內容不為空，才回傳，否則一律 fallback 到 global
+            const list = statusConfigCache[squadronName];
+            if (squadronName && Array.isArray(list) && list.length > 0) {
+                return list;
             }
             return statusConfigCache["global"] || DEFAULT_STATUSES;
         }
@@ -881,11 +914,11 @@
             const scopes = [];
 
             const isSuper = (role === 'super_admin' || role === 'general_admin');
-            const isMgmt = (currentUser.squadron === '管理階層');
+            const isMgmt = (currentUser.squadron && currentUser.squadron.includes('管理階層'));
 
             if (isSuper || isMgmt) {
                 scopes.push({ val: 'global', label: '全域預設' });
-                // Add all squadrons
+                // Add all squadrons (which already includes management units)
                 squadronOrder.forEach(sq => scopes.push({ val: sq, label: sq }));
             } else if (role === 'battalion_admin' && currentUser.managedBattalion) {
                 // Add all in battalion
@@ -902,9 +935,9 @@
 
         // 3-Level Hierarchy
         const battalionStructure = {
-            "管理單位": ["管理階層"],
-            "一大隊": ["管理階層", "一大隊大隊部", "一大一中", "一大二中", "一大三中", "一大四中", "一大五中", "一大六中"],
-            "二大隊": ["管理階層", "二大隊大隊部", "二大一中", "二大二中", "二大三中", "二大四中", "二大五中", "二大六中"]
+            "管理單位": ["一大隊管理階層", "二大隊管理階層"],
+            "一大隊": ["一大隊管理階層", "一大隊大隊部", "一大一中", "一大二中", "一大三中", "一大四中", "一大五中", "一大六中"],
+            "二大隊": ["二大隊管理階層", "二大隊大隊部", "二大一中", "二大二中", "二大三中", "二大四中", "二大五中", "二大六中"]
         };
 
         // Flatten for sorting (Unique)
@@ -1231,8 +1264,26 @@
         const q = query(studentsRef);
         const unsubscribeStudents = onSnapshot(q, (snapshot) => {
             studentsData = [];
-            snapshot.forEach((doc) => {
-                const data = { id: doc.id, ...doc.data() };
+            snapshot.forEach((docSnap) => {
+                const data = { id: docSnap.id, ...docSnap.data() };
+                
+                // [AUTO-MIGRATION] Salvage legacy '管理階層' personnel based on their class
+                if (data.squadron === '管理階層') {
+                    const newSq = (data.class && data.class.startsWith('二大')) ? '二大隊管理階層' : '一大隊管理階層';
+                    data.squadron = newSq;
+                    try {
+                        updateDoc(doc(db, "students", data.id), { squadron: newSq });
+                    } catch (e) { console.error("Migration error:", e); }
+                }
+                
+                // [AUTO-MIGRATION FIX] Correct any cadres wrongly migrated to '一大隊管理階層' in the previous step
+                if (data.squadron === '一大隊管理階層' && data.class && data.class.startsWith('二大')) {
+                    data.squadron = '二大隊管理階層';
+                    try {
+                        updateDoc(doc(db, "students", data.id), { squadron: '二大隊管理階層' });
+                    } catch (e) { console.error("Migration fix error:", e); }
+                }
+
                 studentsData.push(data);
                 
                 // [NEW] Update currentUser session if their data changed in Firestore
@@ -1270,7 +1321,7 @@
         window.startDayLongPress = (d) => {
             // Only allow interns and management to use long-press copy
             if (!currentUser) return;
-            const isMgmt = currentUser.squadron === '管理階層' || currentUser.role === 'management_cadre';
+            const isMgmt = currentUser.squadron && currentUser.squadron.includes('管理階層') || currentUser.role === 'management_cadre';
             const isIntern = ['super_admin', 'general_admin', 'class_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader', 'district_admin', 'intern_battalion_hq'].includes(currentUser.role);
             
             if (!isMgmt && !isIntern) return;
@@ -1303,7 +1354,7 @@
             if (!container) return;
             
             days = getRollingDays(); 
-            const isMgmt = (currentUser && (currentUser.squadron === '管理階層' || currentUser.role === 'management_cadre'));
+            const isMgmt = (currentUser && (currentUser.squadron.includes('管理階層') || currentUser.role === 'management_cadre'));
             
             // Standard View for everyone now (7 days rolling)
             container.className = "d-flex gap-2 overflow-x-auto pb-2 flex-nowrap mb-4";
@@ -1351,7 +1402,7 @@
             if (currentUser) {
                 const isAdmin = ['super_admin', 'general_admin'].includes(currentUser.role);
                 const isBattalionHQ = currentUser.role === 'intern_battalion_hq';
-                const isMgmtUser = currentUser.squadron === '管理階層';
+                const isMgmtUser = currentUser.squadron && currentUser.squadron.includes('管理階層');
 
                 if (isAdmin || isMgmtUser) {
                     // Allowed
@@ -1400,7 +1451,7 @@
             const container = document.getElementById('classContainer');
             const statsContainer = document.getElementById('statusStatsSection');
             const sessionTabs = document.getElementById('sessionTabs');
-            const isMgmtSq = (currentSquadron === '管理階層');
+            const isMgmtSq = (currentSquadron && currentSquadron.includes('管理階層'));
 
             if (isMgmtSq) {
                 document.getElementById('currentSessionLabel').innerText = `(${currentDay})`;
@@ -1419,16 +1470,35 @@
                 // Show all squadrons in this battalion
                 const targetSquadrons = battalionStructure[currentSquadron];
                 squadronStudents = studentsData.filter(s => targetSquadrons.includes(s.squadron));
-            } else if (currentSquadron === "管理階層") {
-                squadronStudents = studentsData.filter(s => s.squadron === '管理階層');
+            } else if (currentSquadron && currentSquadron.includes('管理階層')) {
+                // Auto-classify management personnel based on battalion
+                const targetBattalion = currentSquadron.includes('一大隊') ? '一大隊' : (currentSquadron.includes('二大隊') ? '二大隊' : null);
+                
+                squadronStudents = studentsData.filter(s => {
+                    // Option 1: Explicitly assigned to the management unit
+                    if (s.squadron === currentSquadron) return true;
+                    
+                    // Option 2: Has management role and belongs to a squadron in this battalion
+                    if (s.role === 'management_cadre') {
+                        // If targetBattalion is null, they just appear in '管理階層'
+                        if (!targetBattalion) return true;
+                        if (getBattalionFromSquadron(s.squadron) === targetBattalion) return true;
+                    }
+                    return false;
+                });
             } else {
                 // Specific Squadron
-                squadronStudents = studentsData.filter(s => s.squadron === currentSquadron);
+                // Exclude management_cadre from the regular table so they appear in the top Management Affiliated box instead
+                squadronStudents = studentsData.filter(s => s.squadron === currentSquadron && s.role !== 'management_cadre');
             }
 
             // [NEW] Find affiliated Management Level personnel who should NOT count but should be visible
-            const mgmtAffiliated = (currentSquadron !== '管理階層') 
-                ? studentsData.filter(s => s.squadron === '管理階層' && s.class === currentSquadron)
+            const mgmtAffiliated = (!currentSquadron.includes('管理階層')) 
+                ? studentsData.filter(s => {
+                    if (s.role === 'management_cadre' && s.squadron === currentSquadron) return true;
+                    if (s.squadron && s.squadron.includes('管理階層') && s.class === currentSquadron) return true;
+                    return false;
+                })
                 : [];
 
             // 1.5 Special Role Filtering (Optional: restrict District Leaders if needed, but for now allow seeing squadron)
@@ -1638,9 +1708,9 @@
                                 } else if (currentUser.id === student.id) {
                                     canEdit = true;
                                 }
-                            } else if (currentUser.squadron === '管理階層') {
+                            } else if (currentUser.squadron && currentUser.squadron.includes('管理階層')) {
                                 // Management Level staff can edit each other
-                                if (student.squadron === '管理階層') {
+                                if (student.squadron === currentUser.squadron) {
                                     canEdit = true;
                                     canDelete = false; // Only Super Admin can delete management
                                 }
@@ -1694,17 +1764,20 @@
                         <tr style="${rowStyle}">
                             <td>
                                 <span class="fw-bold ${getNameColorClass(student._currentStatus)}" ${nameAction}>${student.name}</span>${roleTitleHtml}${(student.dorm || student.bed) ? ` <span class="text-muted small">${(student.dorm || '')}${(student.bed || '')}</span>` : ''}
-                                <br><span class="badge bg-light text-secondary border">${student.squadron ? student.squadron + ' / ' : ''}${student.class} / ${student.group || '-'}</span>
+                                <br><span class="badge bg-light text-secondary border">${(student.squadron && !(currentSquadron && currentSquadron.includes('管理階層'))) ? student.squadron + ' / ' : ''}${student.class} / ${student.group || '-'}</span>
                             </td>
                             <td>${statusDisplay}</td>
                             <td class="text-center">
                                 ${(pendingReq && currentUser && (currentUser.id === pendingReq.requesterId || currentUser.role === 'super_admin')) ?
                                 `<button class="btn btn-sm btn-outline-danger w-100 fw-bold" onclick="cancelRequest('${pendingReq.id}')">取消申請</button>` :
-                                (canEdit ? (student.squadron === '管理階層' ? 
-                                    `<button class="btn btn-sm btn-primary w-100 fw-bold" 
-                                        onclick="openUpdateStatusModal('${student.id}', '${student.name}', '${student._currentStatus}', '${student.squadron}', '${student.class}', '${student.group}')">
-                                        變更狀態
-                                    </button>` :
+                                (canEdit ? ((student.role === 'management_cadre' || (student.squadron && student.squadron.includes('管理階層'))) ? 
+                                    `<div class="d-flex w-100" style="max-width: 130px; margin: 0 auto;">
+                                        <button class="btn btn-sm btn-primary fw-bold p-1 w-100" 
+                                            style="font-size: 0.75rem;"
+                                            onclick="openUpdateStatusModal('${student.id}', '${student.name}', '${student._currentStatus}', '${student.squadron}', '${student.class}', '${student.group}')">
+                                            差勤
+                                        </button>
+                                    </div>` :
                                     `<div class="d-flex gap-1" style="max-width: 130px; margin: 0 auto;">
                                         <button class="btn btn-sm btn-primary flex-grow-1 fw-bold p-1" 
                                             style="font-size: 0.75rem;"
@@ -1750,6 +1823,7 @@
                                 <div class="class-header d-flex justify-content-between align-items-start">
                                     <div class="d-flex align-items-center mt-1">
                                         <span class="fs-5 me-2"><i class="bi bi-house-door-fill me-2"></i>${groupName}</span>
+                                        ${isMgmtSq ? '' : `
                                         <div class="dropdown">
                                             <button class="btn btn-sm btn-link text-white p-0" type="button" data-bs-toggle="dropdown"><i class="bi bi-three-dots-vertical"></i></button>
                                             <ul class="dropdown-menu">
@@ -1759,6 +1833,7 @@
                                                 <li><button class="dropdown-item text-danger" onclick="resetStatus('day', '${groupName}')"><i class="bi bi-calendar-x me-2"></i>重置 (整天)</button></li>
                                             </ul>
                                         </div>
+                                        `}
                                     </div>
                                     <div class="d-flex flex-column align-items-end">
                                         <span class="badge bg-light text-dark opacity-75 fw-normal fs-6 mb-1">${classStatStr}</span>
@@ -1816,7 +1891,7 @@
             const classInput = document.getElementById('inputClass');
             const groupInput = document.getElementById('inputGroup');
 
-            if (sq === '管理階層') {
+            if (sq && sq.includes('管理階層')) {
                 classLabel.innerHTML = '所屬單位 <small class="text-muted">(例: 總務科)</small>';
                 classInput.placeholder = "所屬單位";
                 groupLabel.innerHTML = '職位 <small class="text-muted">(例: 科長)</small>';
@@ -1920,12 +1995,12 @@
             const student = studentsData.find(s => s.id === id);
             if (!student) return;
 
-            const isMgmtTarget = (student.squadron === '管理階層');
+            const isMgmtTarget = (student.squadron && student.squadron.includes('管理階層'));
             const isGlobalAdmin = ['super_admin', 'general_admin'].includes(currentUser.role);
-            const isMgmtUser = (currentUser.role === 'management_cadre' || currentUser.squadron === '管理階層');
+            const isMgmtUser = (currentUser.role === 'management_cadre' || (currentUser.squadron && currentUser.squadron.includes('管理階層')));
 
             // If user is in Management squadron, they can ONLY edit other Management people
-            if (currentUser.squadron === '管理階層') {
+            if (currentUser.squadron && currentUser.squadron.includes('管理階層')) {
                 if (!isMgmtTarget) {
                     // Allowed to view other squadrons, but not edit
                     return alert("檢視模式：您僅能檢視所屬單位，無法變更其學生狀態");
@@ -2078,7 +2153,10 @@
                     configData = snapshot.data();
                 }
 
-                let currentList = configData[scope] || (scope === 'global' ? [...DEFAULT_STATUSES] : []);
+                let currentList = configData[scope];
+                if (!currentList || currentList.length === 0) {
+                    currentList = configData['global'] || [...DEFAULT_STATUSES];
+                }
                 
                 if (currentList.some(s => stripStatusHtml(s).trim() === val)) {
                     alert("該狀態已存在");
@@ -2117,7 +2195,10 @@
                     if (!snapshot.exists()) throw new Error("設定檔不存在");
 
                     let configData = snapshot.data();
-                    let rawStatuses = configData[scope] || [];
+                    let rawStatuses = configData[scope];
+                    if (!rawStatuses || rawStatuses.length === 0) {
+                        rawStatuses = configData['global'] || [...DEFAULT_STATUSES];
+                    }
                     const cleanStatuses = rawStatuses.filter(s => s !== val);
 
                     configData[scope] = cleanStatuses;
@@ -2183,7 +2264,7 @@
             
             // [NEW] Role-based scope restriction
             const isSuper = ['super_admin', 'general_admin'].includes(currentUser.role);
-            const isMgmt = (currentUser.squadron === '管理階層' || currentUser.role === 'management_cadre');
+            const isMgmt = (currentUser.squadron && currentUser.squadron.includes('管理階層')) || currentUser.role === 'management_cadre';
             const isSqLeader = ['intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'squadron_admin'].includes(currentUser.role);
             const isBattalionHQ = ['intern_battalion_leader', 'intern_deputy_battalion_leader', 'intern_battalion_po', 'intern_battalion_hq'].includes(currentUser.role);
             
@@ -2257,7 +2338,10 @@
             }
             
             const scope = scopeSelect ? scopeSelect.value : 'global';
-            const list = statusConfigCache[scope] || (scope === 'global' ? [...DEFAULT_STATUSES] : []);
+            let list = statusConfigCache[scope];
+            if (!list || list.length === 0) {
+                list = statusConfigCache['global'] || [...DEFAULT_STATUSES];
+            }
 
             container.innerHTML = list.map(s => `
                 <div class="badge bg-white text-dark border p-2 m-1 d-flex align-items-center">
@@ -2325,6 +2409,12 @@
             // Permission Check
             let canReset = false;
             if (currentUser.role === 'super_admin' || currentUser.role === 'general_admin') canReset = true;
+            if (currentUser.role === 'management_cadre') {
+                // Can reset their own affiliated management group
+                if (currentSquadron && currentSquadron.includes('管理階層') && currentUser.class === groupName) {
+                    canReset = true;
+                }
+            }
             if (currentUser.role === 'class_admin' && currentUser.class === groupName && currentUser.squadron === currentSquadron) {
                 const isDining = (currentSession === '中午上餐廳' || currentSession === '晚上上餐廳');
                 if (scope === 'day') {
@@ -2465,7 +2555,38 @@
         // Listen to Status Config (Master Source)
         onSnapshot(statusConfigRef, (docSnap) => {
             if (docSnap.exists()) {
-                statusConfigCache = docSnap.data();
+                const data = docSnap.data();
+                let needsUpdate = false;
+                
+                // [AUTO-FIX] Deduplicate all arrays
+                Object.keys(data).forEach(key => {
+                    if (Array.isArray(data[key])) {
+                        const unique = Array.from(new Set(data[key].map(s => String(s).trim()))).filter(s => s !== '');
+                        if (unique.length !== data[key].length) {
+                            data[key] = unique;
+                            needsUpdate = true;
+                        }
+                    }
+                });
+                
+                // [AUTO-FIX] Seed Management Levels with requested custom statuses
+                const mgmtUnits = ["一大隊管理階層", "二大隊管理階層"];
+                const requiredMgmtStatuses = [...DEFAULT_STATUSES, "值星", "任務", "休假", "留守"];
+                mgmtUnits.forEach(unit => {
+                    // If unit config doesn't exist, OR it's missing '實到' (meaning it suffered from the overwrite bug)
+                    if (!data[unit] || !data[unit].includes("實到")) {
+                        const existing = data[unit] || [];
+                        const merged = Array.from(new Set([...requiredMgmtStatuses, ...existing]));
+                        data[unit] = merged;
+                        needsUpdate = true;
+                    }
+                });
+                
+                if (needsUpdate) {
+                    setDoc(statusConfigRef, data, { merge: true });
+                }
+
+                statusConfigCache = data;
                 // Ensure global exists
                 if (!statusConfigCache["global"]) statusConfigCache["global"] = [...DEFAULT_STATUSES];
                 
@@ -2590,7 +2711,7 @@
 
                 // Admin detection based on role type or squadron
                 const isGlobalAdmin = ['super_admin', 'general_admin'].includes(currentUser.role);
-                const isMgmtUser = currentUser.squadron === '管理階層' || currentUser.role === 'management_cadre';
+                const isMgmtUser = (currentUser.squadron && currentUser.squadron.includes('管理階層')) || currentUser.role === 'management_cadre';
                 const isInternAdmin = ['class_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader', 'district_admin'].includes(currentUser.role);
                 
                 isAdmin = isGlobalAdmin || isMgmtUser || isInternAdmin || (currentUser.role === 'group_admin');
@@ -2667,7 +2788,7 @@
             // Update Quick Status Button Label based on role
             const qsBtnLabel = document.getElementById('quickStatusBtnLabel');
             if (qsBtnLabel) {
-                const isMgmt = currentUser && (currentUser.squadron === '管理階層' || currentUser.role === 'management_cadre');
+                const isMgmt = currentUser && (currentUser.squadron && currentUser.squadron.includes('管理階層') || currentUser.role === 'management_cadre');
                 qsBtnLabel.innerText = isMgmt ? "任務差勤" : "快速差勤";
             }
         }
@@ -2679,7 +2800,7 @@
             const userBattalion = currentUser ? getBattalionFromSquadron(currentUser.squadron) : null;
             const isBattalionHQ = currentUser && currentUser.role === 'intern_battalion_hq';
             const isGlobalAdmin = currentUser && ['super_admin', 'general_admin'].includes(currentUser.role);
-            const isMgmtCadre = currentUser && (currentUser.role === 'management_cadre' || currentUser.squadron === '管理階層');
+            const isMgmtCadre = currentUser && (currentUser.role === 'management_cadre' || (currentUser.squadron && currentUser.squadron.includes('管理階層')));
 
             let html = "";
             
@@ -2738,7 +2859,7 @@
             
             const isSuper = currentUser && currentUser.role === 'super_admin';
             const isSquadronHQ = currentUser && ['intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role);
-            const isMgmtUser = currentUser && currentUser.squadron === '管理階層';
+            const isMgmtUser = currentUser && currentUser.squadron && currentUser.squadron.includes('管理階層');
             
             if (isSuper || isMgmtUser) {
                 if (delBtn) delBtn.classList.remove('d-none');
@@ -3001,7 +3122,7 @@
                 if (isDistrictLeader && s.squadron !== currentUser.squadron) return false;
 
                 // [NEW] Management Cadre cannot see System Admins
-                const isMgmtViewer = currentUser.role === 'management_cadre' || currentUser.squadron === '管理階層';
+                const isMgmtViewer = currentUser.role === 'management_cadre' || (currentUser.squadron && currentUser.squadron.includes('管理階層'));
                 const isSystemAdminViewer = ['super_admin', 'general_admin'].includes(currentUser.role);
                 if (isMgmtViewer && !isSystemAdminViewer) {
                     if (['super_admin', 'general_admin'].includes(s.role)) return false;
@@ -3059,7 +3180,7 @@
                 // E.g. 'super_admin' might not have a squadron, but 'intern_battalion_hq' might.
                 // However, intern leaders usually won't manage battalion hq.
                 const isGlobalAdmin = ['super_admin', 'general_admin'].includes(currentUser.role);
-                const isMgmtUser = currentUser.squadron === '管理階層';
+                const isMgmtUser = currentUser.squadron && currentUser.squadron.includes('管理階層');
                 const isTargetSensitive = ['super_admin', 'general_admin', 'intern_battalion_hq'].includes(currentRole);
                 
                 // Management Cadre: ONLY can manage Roles. Cannot manage Class/Group/Name/Delete
@@ -3222,7 +3343,7 @@
                 }
             } else if (isMgmtUser && !isFullAdmin) {
                 // Management Cadre can only edit Management people
-                if (target.squadron !== '管理階層') {
+                if (!target.squadron || !target.squadron.includes('管理階層')) {
                     alert("權限不足：您僅能變更管理階層人員的角色");
                     renderAdminUserList();
                     return;
@@ -3312,7 +3433,7 @@
         };
 
         window.resetAllPasswords = async () => {
-            const isSuper = (currentUser && currentUser.role === 'super_admin') || (currentUser && currentUser.squadron === '管理階層');
+            const isSuper = (currentUser && currentUser.role === 'super_admin') || (currentUser && currentUser.squadron && currentUser.squadron.includes('管理階層'));
             const isSquadronHQ = currentUser && ['intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role);
             if (!isSuper && !isSquadronHQ) return;
             
@@ -3345,7 +3466,7 @@
         };
 
         window.resetAllDorms = async () => {
-            const isSuper = (currentUser && currentUser.role === 'super_admin') || (currentUser && currentUser.squadron === '管理階層');
+            const isSuper = (currentUser && currentUser.role === 'super_admin') || (currentUser && currentUser.squadron && currentUser.squadron.includes('管理階層'));
             const isSquadronHQ = currentUser && ['intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role);
             if (!isSuper && !isSquadronHQ) return;
             
@@ -3797,7 +3918,6 @@
                     temp_password: String(tempPass)
                 };
 
-                console.log("📧 準備發送 EmailJS，參數：", templateParams);
 
                 // 直接在發送時帶入 Public Key，避免全域變數失效
                 await emailjs.send('service_t61mjz8', 'template_8yvxadg', templateParams, 'lDn0uId0VWcYo8EIi');
@@ -3960,12 +4080,7 @@
                 return;
             }
 
-            const oldPass = document.getElementById('oldPass').value;
-            if (pass === oldPass) {
-                msg.innerText = '× 密碼已使用過';
-                msg.className = 'small mt-1 fw-bold text-danger';
-                return;
-            }
+            // Removed old password equality check as per user request
 
             // Complexity: must have letter, number, special char, and length >= 8
             const hasLetter = /[a-zA-Z]/.test(pass);
@@ -4010,7 +4125,7 @@
 
             if (newPass === '0000') { alert("禁止再使用預設密碼 0000"); return; }
             if (newPass !== confirmPass) { alert("兩次新密碼輸入不一致"); return; }
-            if (newPass === oldPass) { alert("新密碼不可與舊密碼相同"); return; }
+            // Removed old password equality check
 
             // Complexity check (synchronized with checkPasswordStrength)
             const hasLetter = /[a-zA-Z]/.test(newPass);
@@ -4266,8 +4381,405 @@
             }
         };
 
+        // --- Management Cadre Scheduling Variables & Functions ---
+        let mgmtSelectedStudents = new Set();
+        let mgmtCurrentDate = new Date(); // To track the calendar month
+        let mgmtSearchTags = [];
+
+        window.handleMgmtSearchInput = (event) => {
+            if (event.key === 'Enter') {
+                const term = event.target.value.trim();
+                if (term && !mgmtSearchTags.includes(term)) {
+                    mgmtSearchTags.push(term);
+                    event.target.value = '';
+                    renderMgmtSearchTags();
+                    renderMgmtCalendar();
+                } else if (term) {
+                    event.target.value = '';
+                }
+            }
+        };
+
+        window.removeMgmtSearchTag = (index) => {
+            mgmtSearchTags.splice(index, 1);
+            renderMgmtSearchTags();
+            renderMgmtCalendar();
+        };
+
+        window.renderMgmtSearchTags = () => {
+            const container = document.getElementById('mgmtSearchTagsContainer');
+            if (!container) return;
+            if (mgmtSearchTags.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+            container.innerHTML = mgmtSearchTags.map((tag, idx) => `
+                <span class="badge bg-primary fs-6 d-flex align-items-center shadow-sm">
+                    ${tag}
+                    <i class="bi bi-x-circle ms-2" style="cursor: pointer;" onclick="removeMgmtSearchTag(${idx})"></i>
+                </span>
+            `).join('');
+        };
+
+        window.openMgmtScheduleModal = () => {
+            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('mgmtScheduleModal'));
+            
+            // 1. Populate Target Students (Checkbox Grid)
+            mgmtSelectedStudents.clear();
+            const targetStudentGrid = document.getElementById('mgmtTargetStudentGrid');
+            
+            // Find management cadre of the current active squadron tab
+            const targetBattalion = currentSquadron.includes('一大隊') ? '一大隊' : (currentSquadron.includes('二大隊') ? '二大隊' : null);
+            let mgmtStudents = studentsData.filter(s => {
+                if (s.squadron === currentSquadron) return true;
+                if (s.role === 'management_cadre') {
+                    if (!targetBattalion) return true;
+                    if (getBattalionFromSquadron(s.squadron) === targetBattalion) return true;
+                }
+                return false;
+            });
+            
+            // Permission check: regular management cadre can only see their own class (e.g. 二大一中)
+            const isSuper = ['super_admin', 'general_admin'].includes(currentUser.role);
+            if (!isSuper && currentUser.role === 'management_cadre') {
+                mgmtStudents = mgmtStudents.filter(s => s.class === currentUser.class);
+            }
+
+            if (mgmtStudents.length === 0) {
+                targetStudentGrid.innerHTML = '<div class="text-muted w-100 text-center py-3">查無可排班人員，請確認資料庫設定。</div>';
+            } else {
+                targetStudentGrid.innerHTML = mgmtStudents.map(s => `
+                    <div>
+                        <input type="checkbox" class="btn-check" value="${s.id}" id="mgmtTarget_${s.id}">
+                        <label class="btn btn-outline-success fw-bold" for="mgmtTarget_${s.id}">${s.name}</label>
+                    </div>
+                `).join('');
+            }
+
+            // 2. Populate Status Grid (Radio buttons)
+            const statusGrid = document.getElementById('mgmtStatusGrid');
+            
+            // Read directly from config cache for this specific management squadron
+            let availableStatuses = statusConfigCache[currentSquadron];
+            if (!availableStatuses || availableStatuses.length === 0) {
+                // If they haven't configured statuses for this management unit, use these defaults instead of the global '事假/病假'
+                availableStatuses = ['值星', '任務', '休假', '留守', '實到'];
+            }
+            
+            // Clear Search
+            mgmtSearchTags = [];
+            renderMgmtSearchTags();
+            const searchInput = document.getElementById('mgmtScheduleSearch');
+            if(searchInput) searchInput.value = '';
+            
+            statusGrid.innerHTML = availableStatuses.map(status => {
+                if (status === '實到') return ''; // Hide default
+                return `
+                    <div>
+                        <input type="radio" class="btn-check" name="mgmtStatusRadio" value="${status}" id="mgmtStatus_${status}">
+                        <label class="btn btn-outline-success fw-bold px-3" for="mgmtStatus_${status}">${status}</label>
+                    </div>
+                `;
+            }).join('');
+
+            // 3. Render Calendar
+            mgmtCurrentDate = new Date(); // Reset to current month
+            renderMgmtCalendar();
+
+            modal.show();
+        };
+
+        window.selectAllMgmtStudents = () => {
+            document.querySelectorAll('input[id^="mgmtTarget_"]').forEach(cb => {
+                cb.checked = true;
+                mgmtSelectedStudents.add(cb.value);
+            });
+        };
+
+        window.clearAllMgmtStudents = () => {
+            document.querySelectorAll('input[id^="mgmtTarget_"]').forEach(cb => cb.checked = false);
+            mgmtSelectedStudents.clear();
+        };
+
+        window.changeMgmtMonth = (offset) => {
+            mgmtCurrentDate.setMonth(mgmtCurrentDate.getMonth() + offset);
+            renderMgmtCalendar();
+        };
+
+        window.toggleAllMgmtList = (checkbox) => {
+            const listCheckboxes = document.querySelectorAll('.mgmt-del-cb');
+            listCheckboxes.forEach(cb => cb.checked = checkbox.checked);
+        };
+
+        window.renderMgmtCalendar = () => {
+            const container = document.getElementById('mgmtCalendarContainer');
+            const monthControls = document.getElementById('mgmtMonthControls');
+            const searchTerms = mgmtSearchTags.map(t => t.toLowerCase());
+
+            // Get relevant students
+            const targetBattalion = currentSquadron.includes('一大隊') ? '一大隊' : (currentSquadron.includes('二大隊') ? '二大隊' : null);
+            let mgmtStudents = studentsData.filter(s => {
+                if (s.squadron === currentSquadron) return true;
+                if (s.role === 'management_cadre') {
+                    if (!targetBattalion) return true;
+                    if (getBattalionFromSquadron(s.squadron) === targetBattalion) return true;
+                }
+                return false;
+            });
+
+            const isSuper = ['super_admin', 'general_admin'].includes(currentUser.role);
+            if (!isSuper && currentUser.role === 'management_cadre') {
+                mgmtStudents = mgmtStudents.filter(s => s.class === currentUser.class);
+            }
+
+            // --- List View Mode (Active Search Tags) ---
+            if (searchTerms.length > 0) {
+                if (monthControls) monthControls.classList.add('d-none');
+                
+                let listHtml = `
+                    <div class="d-flex justify-content-between align-items-center bg-light p-2 border-bottom sticky-top shadow-sm">
+                        <div class="form-check mb-0 p-0">
+                            <input class="btn-check" type="checkbox" id="mgmtListSelectAll" onclick="toggleAllMgmtList(this)">
+                            <label class="btn btn-outline-custom-danger fw-bold btn-sm" for="mgmtListSelectAll">全選 / 取消全選</label>
+                        </div>
+                        <span class="text-muted small">搜尋結果將列出該員過去與未來的全部排班</span>
+                    </div>
+                    <div class="p-2">
+                `;
+                
+                let matchCount = 0;
+                
+                // Sort students to keep list organized
+                mgmtStudents.sort((a,b) => a.name.localeCompare(b.name, 'zh-Hant')).forEach(student => {
+                    const matchesAny = searchTerms.some(term => student.name.toLowerCase().includes(term));
+                    if (!matchesAny) return;
+
+                    if (!student.status) return;
+                    
+                    // Collect unique dates
+                    const schedules = [];
+                    for (const [key, val] of Object.entries(student.status)) {
+                        const st = stripStatusHtml(val);
+                        if (st && st !== '實到') {
+                            const dateStr = key.substring(0, 10);
+                            schedules.push({ date: dateStr, status: st });
+                        }
+                    }
+                    
+                    const uniqueDates = {};
+                    schedules.forEach(sch => uniqueDates[sch.date] = sch.status);
+                    
+                    const sortedDates = Object.keys(uniqueDates).sort((a,b) => b.localeCompare(a)); // Descending by date
+                    
+                    sortedDates.forEach(dateStr => {
+                        matchCount++;
+                        const cbId = `mgmtSchDel_${student.id}_${dateStr}`;
+                        listHtml += `
+                            <div>
+                                <input class="btn-check mgmt-del-cb" type="checkbox" data-studentid="${student.id}" data-date="${dateStr}" id="${cbId}">
+                                <label class="btn btn-outline-custom-danger w-100 text-start d-flex align-items-center p-2 mb-2 shadow-sm border" for="${cbId}" style="transition: all 0.2s; background-color: white;">
+                                    <span class="fw-bold fs-5 me-4" style="min-width: 80px;">${student.name}</span>
+                                    <span class="fs-5 me-4"><i class="bi bi-calendar-event me-2"></i> ${dateStr}</span>
+                                    <span class="badge bg-danger fs-5 px-3 py-2 rounded-pill shadow-sm border border-white text-white">${uniqueDates[dateStr]}</span>
+                                </label>
+                            </div>
+                        `;
+                    });
+                });
+
+                if (matchCount === 0) {
+                    listHtml += `<div class="text-center text-muted py-5"><i class="bi bi-search fs-1"></i><p class="mt-2 fs-5">找不到該員的任何排班紀錄</p></div>`;
+                }
+                
+                listHtml += `</div></div>`;
+                container.innerHTML = listHtml;
+                return;
+            }
+
+            // --- Calendar View Mode (No Search) ---
+            if (monthControls) monthControls.classList.remove('d-none');
+            
+            const year = mgmtCurrentDate.getFullYear();
+            const month = mgmtCurrentDate.getMonth();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const firstDay = new Date(year, month, 1).getDay();
+            
+            document.getElementById('mgmtCalendarMonthLabel').innerText = `${year}年 ${month + 1}月`;
+            
+            let html = `<div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background-color: #dee2e6;">`;
+            
+            // Weekday headers
+            ['日','一','二','三','四','五','六'].forEach((d, idx) => {
+                const color = (idx === 0 || idx === 6) ? '#dc3545' : '#212529';
+                html += `<div class="bg-light text-center py-2 fw-bold" style="color: ${color};">${d}</div>`;
+            });
+            
+            for (let i = 0; i < firstDay; i++) html += `<div class="bg-white"></div>`;
+            
+            for (let i = 1; i <= daysInMonth; i++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+                const isToday = (dateStr === new Date().toISOString().split('T')[0]);
+                const dayOfWeek = new Date(year, month, i).getDay();
+                const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+                const dayColor = isWeekend ? '#dc3545' : '#212529';
+                const bgStyle = isToday ? 'background-color: #fff3cd;' : 'background-color: white;';
+                
+                let schedulesHtml = '';
+                const dayPrefix = `${dateStr}_`;
+                
+                mgmtStudents.forEach(student => {
+                    if (!student.status) return;
+                    let dailyStatus = null;
+                    for (const key of Object.keys(student.status)) {
+                        if (key.startsWith(dayPrefix)) {
+                            const st = stripStatusHtml(student.status[key]);
+                            if (st && st !== '實到') {
+                                dailyStatus = st;
+                                break;
+                            }
+                        }
+                    }
+                    if (dailyStatus) {
+                        const cbId = `mgmtSchDel_${student.id}_${dateStr}`;
+                        schedulesHtml += `
+                            <div class="mb-1">
+                                <input class="btn-check mgmt-del-cb" type="checkbox" data-studentid="${student.id}" data-date="${dateStr}" id="${cbId}">
+                                <label class="btn btn-outline-custom-danger w-100 text-start px-1 py-1 border-0 shadow-sm" for="${cbId}" style="font-size: 0.8rem; background-color: #f8f9fa;">
+                                    <span class="fw-bold">${student.name}</span> <span>${dailyStatus}</span>
+                                </label>
+                            </div>
+                        `;
+                    }
+                });
+
+                html += `
+                    <div class="p-1 d-flex flex-column" style="${bgStyle} min-height: 120px; border: 1px solid #f8f9fa;">
+                        <div class="d-flex justify-content-end align-items-center mb-1 pb-1 border-bottom">
+                            <input class="btn-check mgmt-day-cb" type="checkbox" value="${dateStr}" id="mgmtDay_${dateStr}">
+                            <label class="mgmt-day-label fw-bold fs-6 shadow-sm border" for="mgmtDay_${dateStr}" style="color: ${dayColor}; background-color: #f8f9fa;">${i}</label>
+                        </div>
+                        <div class="flex-grow-1 overflow-auto" style="max-height: 90px; padding-right: 2px;">
+                            ${schedulesHtml}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            const totalCells = firstDay + daysInMonth;
+            const remainingCells = (7 - (totalCells % 7)) % 7;
+            for (let i = 0; i < remainingCells; i++) html += `<div class="bg-white"></div>`;
+            html += `</div>`;
+            container.innerHTML = html;
+        };
+
+        window.submitMgmtSchedule = async () => {
+            const checkedStudents = Array.from(document.querySelectorAll('input[id^="mgmtTarget_"]:checked')).map(cb => cb.value);
+            if (checkedStudents.length === 0) return alert("請先選擇排班人員！");
+            
+            const checkedStatusCb = document.querySelector('input[name="mgmtStatusRadio"]:checked');
+            if (!checkedStatusCb) return alert("請設定單一差勤狀態！");
+            const mgmtSelectedStatus = checkedStatusCb.value;
+            
+            const checkedDays = Array.from(document.querySelectorAll('.mgmt-day-cb:checked')).map(cb => cb.value);
+            if (checkedDays.length === 0) return alert("請在月曆上勾選要排班的日期！");
+
+            const btn = event.target;
+            const origText = btn.innerText;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 處理中...';
+            btn.disabled = true;
+
+            try {
+                const promises = [];
+                for (const studentId of checkedStudents) {
+                    const student = studentsData.find(s => s.id === studentId);
+                    if (!student) continue;
+
+                    const updateObj = {};
+                    checkedDays.forEach(dateStr => {
+                        // For management, assign status to all sessions for that day
+                        sessions.forEach(sess => {
+                            updateObj[`status.${dateStr}_${sess}`] = mgmtSelectedStatus;
+                        });
+                    });
+
+                    if (Object.keys(updateObj).length > 0) {
+                        promises.push(updateDoc(doc(db, "students", student.id), updateObj));
+                    }
+                }
+
+                await Promise.all(promises);
+                alert(`成功將 ${checkedStudents.length} 位人員，排定了 ${checkedDays.length} 天的「${mgmtSelectedStatus}」差勤！`);
+                
+                // Clear selections
+                document.querySelectorAll('.mgmt-day-cb:checked').forEach(cb => cb.checked = false);
+                document.querySelectorAll('input[name="mgmtStatusRadio"]:checked').forEach(cb => cb.checked = false);
+                
+                renderAll(); // Updates global data
+                renderMgmtCalendar(); // Re-render the calendar to show new data
+            } catch (e) {
+                console.error("排班失敗", e);
+                alert("排班送出失敗：" + e.message);
+            } finally {
+                btn.innerHTML = origText;
+                btn.disabled = false;
+            }
+        };
+
+        window.deleteSelectedMgmtSchedules = async () => {
+            const checkedSchedules = Array.from(document.querySelectorAll('.mgmt-del-cb:checked'));
+            if (checkedSchedules.length === 0) return alert("請先在月曆的日期下方，勾選要刪除的排班項目！");
+
+            if (!confirm(`確定要批量刪除這 ${checkedSchedules.length} 筆排班嗎？`)) return;
+
+            const btn = event.target.closest('button');
+            const origHtml = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 刪除中...';
+            btn.disabled = true;
+
+            try {
+                // Group deletions by student to minimize writes
+                const studentUpdates = {};
+                
+                checkedSchedules.forEach(cb => {
+                    const sId = cb.getAttribute('data-studentid');
+                    const dateStr = cb.getAttribute('data-date');
+                    if (!studentUpdates[sId]) studentUpdates[sId] = {};
+                    
+                    // Reset all sessions for that day
+                    sessions.forEach(sess => {
+                        studentUpdates[sId][`status.${dateStr}_${sess}`] = deleteField();
+                    });
+                });
+
+                const promises = [];
+                for (const [sId, updateObj] of Object.entries(studentUpdates)) {
+                    promises.push(updateDoc(doc(db, "students", sId), updateObj));
+                }
+
+                await Promise.all(promises);
+                alert(`成功刪除了 ${checkedSchedules.length} 筆排班！`);
+                
+                renderAll();
+                renderMgmtCalendar();
+            } catch (e) {
+                console.error("刪除失敗", e);
+                alert("刪除失敗：" + e.message);
+            } finally {
+                btn.innerHTML = origHtml;
+                btn.disabled = false;
+            }
+        };
+
         window.openQuickStatusModal = () => {
             if (!currentUser) return alert("請先登入！");
+
+            // [NEW] Intercept for Management Levels
+            const activeSq = typeof currentSquadron !== 'undefined' ? currentSquadron : null;
+            if (activeSq && activeSq.includes('管理階層')) {
+                openMgmtScheduleModal();
+                return;
+            }
+
 
             const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('quickStatusModal'));
             const targetClassContainer = document.getElementById('qsTargetClassContainer');
@@ -4323,15 +4835,29 @@
                 // Filter available classes to the active squadron tab
                 let activeSq = typeof currentSquadron !== 'undefined' ? currentSquadron : null;
                 const classLabel = document.getElementById('qsTargetClassLabel');
+                const isMgmtTab = activeSq && activeSq.includes('管理階層');
+                const isMgmtUser = currentUser.role === 'management_cadre';
 
-                if (activeSq === '管理階層' || currentUser.role === 'management_cadre') {
-                    const targetUnit = (currentUser.role === 'management_cadre') ? currentUser.class : '管理階層';
-                    if (classLabel) classLabel.innerText = "所屬管理單位";
-                    document.getElementById('qsTargetClass').innerHTML = `<option value="${targetUnit}" selected>${targetUnit}</option>`;
-                    // Manually trigger student list for Management Level unit
-                    updateQuickStatusStudentList('class', targetUnit); 
+                if (isMgmtTab || isMgmtUser) {
+                    if (classLabel) classLabel.innerText = "所屬中隊";
+                    
+                    if (isMgmtUser && !['super_admin', 'general_admin'].includes(currentUser.role)) {
+                        // Locked to their own affiliated squadron
+                        const targetUnit = currentUser.class || ""; 
+                        document.getElementById('qsTargetClass').innerHTML = `<option value="${targetUnit}" selected>${targetUnit}</option>`;
+                        document.getElementById('qsTargetClass').disabled = true;
+                        updateQuickStatusStudentList('class', targetUnit); 
+                    } else {
+                        // Admin viewing management tab: Can select any affiliated squadron present in the management list
+                        document.getElementById('qsTargetClass').disabled = false;
+                        const units = [...new Set(studentsData.filter(s => s.squadron === activeSq).map(s => s.class))].filter(Boolean).sort();
+                        document.getElementById('qsTargetClass').innerHTML =
+                            `<option value="">請選擇所屬中隊</option>` +
+                            units.map(c => `<option value="${c}">${c}</option>`).join('');
+                    }
                 } else {
                     if (classLabel) classLabel.innerText = "選擇班級";
+                    document.getElementById('qsTargetClass').disabled = false;
                     // Populate Class Select with unique classes in active squadron
                     const classes = [...new Set(studentsData.filter(s => {
                         if (activeSq) {
@@ -4455,7 +4981,7 @@
             }).join('');
 
             const sessionGroup = sessionContainer.closest('.mb-3');
-            if (currentSquadron === '管理階層') {
+            if (currentSquadron && currentSquadron.includes('管理階層')) {
                 if (sessionGroup) sessionGroup.classList.add('d-none');
             } else {
                 if (sessionGroup) sessionGroup.classList.remove('d-none');
@@ -4512,6 +5038,15 @@
                     if (activeSquadron === '一大隊' || activeSquadron === '二大隊') {
                         const targetSquadrons = battalionStructure[activeSquadron];
                         if (targetSquadrons && (!s.squadron || !targetSquadrons.includes(s.squadron))) return false;
+                    } else if (activeSquadron.includes('管理階層')) {
+                        const targetBattalion = activeSquadron.includes('一大隊') ? '一大隊' : (activeSquadron.includes('二大隊') ? '二大隊' : null);
+                        if (s.squadron !== activeSquadron) {
+                            if (s.role === 'management_cadre') {
+                                if (targetBattalion && getBattalionFromSquadron(s.squadron) !== targetBattalion) return false;
+                            } else {
+                                return false;
+                            }
+                        }
                     } else if (!s.squadron || s.squadron !== activeSquadron) {
                         return false;
                     }
@@ -4539,12 +5074,12 @@
             let selectedSessions = Array.from(document.querySelectorAll('input[name="qsSession"]:checked')).map(cb => cb.value);
 
             // [NEW] Management Level: Auto-select all sessions if hidden
-            if (currentSquadron === '管理階層' && selectedSessions.length === 0) {
+            if (currentSquadron && currentSquadron.includes('管理階層') && selectedSessions.length === 0) {
                 selectedSessions = sessions; // Refers to global sessions array
             }
 
             const isMgmtUser = (currentUser && currentUser.role === 'management_cadre');
-            const isMgmtTarget = (currentSquadron === '管理階層');
+            const isMgmtTarget = (currentSquadron && currentSquadron.includes('管理階層'));
 
             // 2. Validation
             if (selectedDays.length === 0) return alert("請至少選擇一個日期");
@@ -4575,10 +5110,21 @@
                 }
             }
 
-            const isStudentRole = (currentUser && currentUser.role === 'student');
+            let targetNamesStr = '';
+            if (!isStudentRole && targetIds.length > 0) {
+                const namesWithRoles = targetIds.slice(0, 10).map(id => {
+                    const s = studentsData.find(st => st.id === id);
+                    if (!s) return '未知';
+                    const roleLabel = (s.role === 'student') ? '學生' : (s.customRoleTitle || ROLE_DEFS[s.role]?.label || '幹部');
+                    return `${s.name} (${roleLabel})`;
+                });
+                const overflow = targetIds.length > 10 ? `...等 ${targetIds.length} 人` : '';
+                targetNamesStr = `這 ${targetIds.length} 位人員：\n${namesWithRoles.join('、')}${overflow}\n\n`;
+            }
+
             let confirmMsg = isStudentRole
                 ? `確定要將自己的狀態在 ${selectedDays.length} 個日期、${selectedSessions.length} 個時段申請設為「${qsSelectedStatus}」嗎？`
-                : `確定要將 ${targetIds.length} 位學生 在 ${selectedDays.length} 個日期、${selectedSessions.length} 個時段的狀態設為「${qsSelectedStatus}」嗎？`;
+                : `確定要將${targetNamesStr}在 ${selectedDays.length} 個日期、${selectedSessions.length} 個時段的狀態設為「${qsSelectedStatus}」嗎？`;
 
             if (!confirm(confirmMsg)) return;
 
@@ -5724,6 +6270,68 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
                 <button type="button" class="btn btn-primary" onclick="submitQuickStatus()">確認送出</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Management Cadre Scheduling Modal -->
+<div class="modal fade" id="mgmtScheduleModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content" style="border: 3px solid #ffc107;">
+            <div class="modal-header" style="background-color: #ffc107; color: black; border-bottom: 2px solid #e0a800;">
+                <h5 class="modal-title fw-bold"><i class="bi bi-calendar-check-fill me-2"></i>管理幹部排班系統</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light">
+                <!-- Top Row: Personnel Selection -->
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="form-label fw-bold mb-0">1. 選擇排班人員 <span class="text-primary small">(可多選)</span></label>
+                        <div>
+                            <button class="btn btn-sm btn-outline-secondary me-2" onclick="selectAllMgmtStudents()">全選</button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="clearAllMgmtStudents()">清除</button>
+                        </div>
+                    </div>
+                    <div id="mgmtTargetStudentGrid" class="border rounded p-2 bg-white d-flex flex-wrap gap-2" style="max-height: 150px; overflow-y: auto;">
+                        <!-- Checkboxes for personnel injected here -->
+                    </div>
+                </div>
+
+                <!-- Second Row: Duty Status Selection -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">2. 設定單一差勤狀態 <span class="text-danger small">(單選)</span></label>
+                    <div id="mgmtStatusGrid" class="border rounded p-2 bg-white d-flex flex-wrap gap-2">
+                        <!-- Radio buttons for statuses injected here -->
+                    </div>
+                </div>
+
+                <!-- Third Row: Monthly Calendar & Search -->
+                <div class="mb-2">
+                    <div class="d-flex align-items-center mb-2 gap-3 flex-wrap">
+                        <label class="form-label fw-bold mb-0 text-nowrap">3. 檢視與刪除排班</label>
+                        <div class="input-group flex-grow-1">
+                            <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                            <input type="text" id="mgmtScheduleSearch" class="form-control" placeholder="輸入姓名並按 Enter 新增篩選..." onkeyup="handleMgmtSearchInput(event)">
+                        </div>
+                        <div class="d-flex align-items-center gap-2 text-nowrap" id="mgmtMonthControls">
+                            <button class="btn btn-sm btn-outline-primary" onclick="changeMgmtMonth(-1)"><i class="bi bi-chevron-left"></i> 上個月</button>
+                            <span id="mgmtCalendarMonthLabel" class="fw-bold fs-5" style="min-width: 90px; text-align: center;"></span>
+                            <button class="btn btn-sm btn-outline-primary" onclick="changeMgmtMonth(1)">下個月 <i class="bi bi-chevron-right"></i></button>
+                        </div>
+                        <button class="btn btn-danger fw-bold shadow-sm ms-2" onclick="deleteSelectedMgmtSchedules()">
+                            批量 <i class="bi bi-trash-fill"></i>
+                        </button>
+                    </div>
+                    <div id="mgmtSearchTagsContainer" class="d-flex flex-wrap gap-2 mb-2"></div>
+                    <div id="mgmtCalendarContainer" class="border rounded bg-white shadow-sm" style="min-height: 400px; max-height: 500px; overflow-y: auto;">
+                        <!-- Calendar / List injected here -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-white border-top">
+                <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-warning fw-bold text-dark px-4 shadow-sm" onclick="submitMgmtSchedule()">確定發送</button>
             </div>
         </div>
     </div>
