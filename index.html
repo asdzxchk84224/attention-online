@@ -4647,7 +4647,7 @@
             
             let canEdit = isSuper || isMgmt || isSqLeader;
             if (!canEdit) {
-                if (currentUser.role === 'intern_class_leader' || currentUser.role === 'class_admin') {
+                if (currentUser.role === 'intern_class_leader' || currentUser.role === 'class_admin' || currentUser.role === 'student') {
                     if (sClass === currentUser.class) canEdit = true;
                 } else if (currentUser.role === 'district_admin') {
                     const managed = currentUser.managedClasses || [];
@@ -4667,42 +4667,117 @@
             naSelectedStudents.clear();
             if (preSelectedId) naSelectedStudents.add(preSelectedId);
 
-            // Reset type select
-            const typeSelect = document.getElementById('naTypeSelect');
-            if (typeSelect) {
-                typeSelect.value = window.currentNAType || "";
-            }
+            // Reset type selection UI
+            window.currentNAType = "";
+            document.querySelectorAll('.na-type-btn').forEach(b => {
+                b.classList.replace('btn-primary', 'btn-outline-primary');
+                b.classList.remove('text-white');
+                b.removeAttribute('disabled'); // Ensure enabled
+            });
 
-            // Check Lock (21:00)
+            // Check Lock (21:01)
             const now = new Date();
             const hour = now.getHours();
-            const isLocked = hour >= 21;
-
-            const btnIds = ['naAddBtn_LateSleep', 'naAddBtn_Study', 'naAddBtn_LateShower'];
-            btnIds.forEach(id => {
-                const b = document.getElementById(id);
-                if (b) {
-                    if (isLocked) {
-                        b.setAttribute('disabled', 'true');
-                        b.innerHTML = '<i class="bi bi-lock-fill small"></i>';
-                        b.className = "btn btn-secondary btn-sm p-0 px-1";
-                    } else {
-                        b.removeAttribute('disabled');
-                        b.innerHTML = '<i class="bi bi-plus"></i>';
-                        b.className = "btn btn-light btn-sm p-0 px-1";
-                    }
-                }
-            });
+            const minute = now.getMinutes();
+            const isAdmin = currentUser && (['super_admin', 'general_admin'].includes(currentUser.role));
+            const isTimeLocked = hour > 21 || (hour === 21 && minute >= 1);
+            const isLocked = !isAdmin && isTimeLocked;
 
             if (isLocked) {
                 document.getElementById('naLockNotice').classList.remove('d-none');
+                document.querySelectorAll('.na-type-btn').forEach(b => b.setAttribute('disabled', 'true'));
             } else {
                 document.getElementById('naLockNotice').classList.add('d-none');
+                document.querySelectorAll('.na-type-btn').forEach(b => b.removeAttribute('disabled'));
             }
 
             renderNightActionStudents();
+            renderNACurrentRecords(); // Check for existing records
             await refreshNightActionDisplay();
             modal.show();
+        };
+
+        window.selectNAType = (type) => {
+            window.currentNAType = type;
+            document.querySelectorAll('.na-type-btn').forEach(b => {
+                b.classList.replace('btn-primary', 'btn-outline-primary');
+                b.classList.remove('text-white');
+            });
+            
+            const mapping = { '延長就寢': 'btnType_Sleep', '延長盥洗': 'btnType_Shower', '夜讀人員': 'btnType_Study' };
+            const btnId = mapping[type];
+            if (btnId) {
+                const btn = document.getElementById(btnId);
+                btn.classList.replace('btn-outline-primary', 'btn-primary');
+                btn.classList.add('text-white');
+            }
+        };
+
+        async function renderNACurrentRecords() {
+            const container = document.getElementById('naCurrentRecordsContainer');
+            const listEl = document.getElementById('naCurrentRecordsList');
+            if (naSelectedStudents.size === 0) {
+                container.classList.add('d-none');
+                return;
+            }
+
+            const selectedIds = Array.from(naSelectedStudents);
+            const dateKey = currentDay;
+
+            // Fetch records for currentDay and selected students
+            const q = query(collection(db, "nightActions"), 
+                where("date", "==", dateKey),
+                where("studentId", "in", selectedIds.slice(0, 10))
+            );
+
+            const snap = await getDocs(q);
+            if (snap.empty) {
+                container.classList.add('d-none');
+                return;
+            }
+
+            container.classList.remove('d-none');
+            let html = "";
+            snap.forEach(docSnap => {
+                const item = docSnap.data();
+                const docId = docSnap.id;
+                const isManagement = ['super_admin', 'general_admin', 'intern_battalion_leader', 'intern_deputy_battalion_leader', 'intern_battalion_po', 'intern_battalion_hq', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader', 'district_admin', 'class_admin'].includes(currentUser.role);
+                const canDelete = currentUser && (currentUser.id === item.studentId || isManagement);
+                
+                html += `
+                    <div class="list-group-item d-flex justify-content-between align-items-center py-2 px-3 border-start border-4 border-warning mb-1 rounded shadow-sm">
+                        <div class="pe-3">
+                            <span class="badge bg-dark me-1">${item.type}</span>
+                            <span class="fw-bold text-primary">${item.studentName}</span>
+                            <span class="ms-2 text-muted" style="font-size:0.85rem;">
+                                <i class="bi bi-clock me-1"></i>${item.time} 
+                                <span class="mx-1">|</span>
+                                <i class="bi bi-info-circle me-1"></i>${item.reason || '無備註'}
+                            </span>
+                        </div>
+                        ${canDelete ? `
+                            <button class="btn btn-danger btn-sm rounded-circle d-flex align-items-center justify-content-center" 
+                                    style="width: 32px; height: 32px; flex-shrink: 0;"
+                                    onclick="deleteNightActionFromModal('${docId}')" title="刪除此紀錄">
+                                <i class="bi bi-trash fs-6"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                `;
+            });
+            listEl.innerHTML = html;
+        }
+
+        window.deleteNightActionFromModal = async (docId) => {
+            if (!confirm('確定取消此夜間行動申請？')) return;
+            try {
+                await deleteDoc(doc(db, "nightActions", docId));
+                await renderNACurrentRecords(); 
+                await refreshNightActionDisplay(); 
+            } catch (e) {
+                console.error(e);
+                alert("刪除失敗");
+            }
         };
 
         function renderNightActionStudents() {
@@ -4711,18 +4786,23 @@
                 grid.innerHTML = '<div class="text-danger small p-3 w-100 text-center">請登入後操作</div>';
                 return;
             }
-            console.log("NA Render: currentUser role=", currentUser.role, "squadron=", currentUser.squadron, "class=", currentUser.class);
-            console.log("NA Render: currentSquadron=", currentSquadron);
-
-            // Show only current squadron/class if intern cadre or student, otherwise currentSquadron
+            // Show only current squadron/class if class-level cadre or student, otherwise currentSquadron
             let targetStudents = studentsData.filter(s => {
-                if (currentUser.role === 'class_admin' || currentUser.role === 'student' || currentUser.role === 'group_admin') {
+                // 1. Class-level specific restrictions
+                const classLevelRoles = ['class_admin', 'student', 'group_admin'];
+                if (classLevelRoles.includes(currentUser.role)) {
                     return s.squadron === currentUser.squadron && s.class === currentUser.class;
                 }
+                
+                // 2. Administrator/Battalion/Squadron level: Handle Battalion vs Squadron
+                if (currentSquadron === "一大隊" || currentSquadron === "二大隊") {
+                    const targetSquadrons = battalionStructure[currentSquadron];
+                    return targetSquadrons.includes(s.squadron);
+                }
+                
+                // 3. Exact squadron match
                 return s.squadron === currentSquadron;
             });
-
-            console.log("NA Render: targetStudents count=", targetStudents.length);
 
             if (targetStudents.length === 0) {
                 const isRestrictedRole = ['class_admin', 'student', 'group_admin'].includes(currentUser.role);
@@ -4734,7 +4814,7 @@
             }
 
             grid.innerHTML = targetStudents.map(s => `
-                <button id="naBtn_${s.id}" class="btn btn-outline-primary btn-sm m-1" onclick="toggleNAStudent('${s.id}')">
+                <button id="naBtn_${s.id}" class="btn ${naSelectedStudents.has(s.id) ? 'btn-primary text-white' : 'btn-outline-primary'} btn-sm m-1" onclick="toggleNAStudent('${s.id}')">
                     ${s.name}
                 </button>
             `).join('');
@@ -4742,7 +4822,8 @@
 
         window.toggleNAStudent = (id) => {
             const btn = document.getElementById(`naBtn_${id}`);
-            console.log("Toggle NA Student:", id);
+            if (!btn) return;
+            
             if (naSelectedStudents.has(id)) {
                 naSelectedStudents.delete(id);
                 btn.classList.replace('btn-primary', 'btn-outline-primary');
@@ -4751,6 +4832,134 @@
                 naSelectedStudents.add(id);
                 btn.classList.replace('btn-outline-primary', 'btn-primary');
                 btn.classList.add('text-white');
+            }
+            renderNACurrentRecords(); 
+        };
+
+        window.proceedToNADetail = () => {
+            if (naSelectedStudents.size === 0) return alert("請先選擇人員");
+            const type = window.currentNAType;
+            if (!type) return alert("請先點選左側行動類型 (例如：夜讀人員)");
+            
+            document.getElementById('naDetailType').value = type;
+            document.getElementById('naDetailModalTitle').innerText = `${type} - 填寫詳細資料`;
+
+            // Generate Individual Form Rows
+            const listContainer = document.getElementById('naIndividualDetailsList');
+            let html = "";
+            
+            Array.from(naSelectedStudents).forEach(sid => {
+                const s = studentsData.find(item => item.id === sid);
+                if (!s) return;
+                
+                // Auto-fill from profile
+                const dorm = s.dorm || "";
+                const bed = s.bed || "";
+
+                html += `
+                    <div class="card shadow-sm border-0 na-entry-row mb-2" data-sid="${sid}">
+                        <div class="card-header py-1 bg-white border-bottom-0 d-flex justify-content-between align-items-center">
+                            <span class="fw-bold text-primary" style="font-size:0.9rem;"><i class="bi bi-person-fill me-1"></i>${s.name}</span>
+                            <span class="badge bg-light text-dark fw-normal" style="font-size:0.7rem;">${s.class}</span>
+                        </div>
+                        <div class="card-body py-2 pt-0">
+                            <div class="row g-2">
+                                <div class="col-3">
+                                    <label class="form-label mb-0" style="font-size:0.7rem; opacity:0.7;">寢室別</label>
+                                    <input type="text" class="form-control form-control-sm na-row-dorm" value="${dorm}" placeholder="S112">
+                                </div>
+                                <div class="col-2">
+                                    <label class="form-label mb-0" style="font-size:0.7rem; opacity:0.7;">床位</label>
+                                    <input type="text" class="form-control form-control-sm na-row-bed" value="${bed}" placeholder="A">
+                                </div>
+                                <div class="col-3">
+                                    <label class="form-label mb-0" style="font-size:0.7rem; opacity:0.7;">至幾點</label>
+                                    <input type="text" class="form-control form-control-sm na-row-time" placeholder="2200" maxlength="4">
+                                </div>
+                                <div class="col-4">
+                                    <label class="form-label mb-0" style="font-size:0.7rem; opacity:0.7;">備註原因</label>
+                                    <input type="text" class="form-control form-control-sm na-row-reason" placeholder="選填">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            listContainer.innerHTML = html;
+
+            // Hide selection modal, show detail modal
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('nightActionModal')).hide();
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('nightActionDetailModal')).show();
+        };
+
+        window.submitNightActionDetail = async () => {
+            const type = document.getElementById('naDetailType').value;
+            const rows = document.querySelectorAll('.na-entry-row');
+            const entries = [];
+            
+            for (const row of rows) {
+                const sid = row.getAttribute('data-sid');
+                const student = studentsData.find(s => s.id === sid);
+                const dorm = row.querySelector('.na-row-dorm').value.trim();
+                const bed = row.querySelector('.na-row-bed').value.trim();
+                const time = row.querySelector('.na-row-time').value.trim();
+                const reason = row.querySelector('.na-row-reason').value.trim();
+
+                if (!dorm || !bed || !time) {
+                    alert(`請完整填寫 ${student.name} 的寢室、床位與時間`);
+                    return;
+                }
+                if (time.length !== 4 || isNaN(time)) {
+                    alert(`${student.name} 的時間格式錯誤 (需為4位數字)`);
+                    return;
+                }
+
+                entries.push({ sid, student, dorm, bed, time, reason });
+            }
+
+            try {
+                const dateKey = currentDay;
+                
+                for (const entry of entries) {
+                    const { sid, student, dorm, bed, time, reason } = entry;
+                    
+                    // 1. Deduplication: Delete any existing same-day, same-type records for this student
+                    const qOld = query(collection(db, "nightActions"), 
+                        where("date", "==", dateKey),
+                        where("studentId", "==", sid),
+                        where("type", "==", type)
+                    );
+                    const oldSnap = await getDocs(qOld);
+                    const deletePromises = [];
+                    oldSnap.forEach(d => deletePromises.push(deleteDoc(d.ref)));
+                    await Promise.all(deletePromises);
+
+                    // 2. Add New Record
+                    await addDoc(collection(db, "nightActions"), {
+                        date: dateKey,
+                        squadron: student.squadron,
+                        class: student.class,
+                        studentId: sid,
+                        studentName: student.name,
+                        type: type,
+                        dorm: dorm,
+                        bed: bed,
+                        time: time,
+                        reason: reason,
+                        timestamp: serverTimestamp()
+                    });
+                }
+
+                alert("報備成功！重複的申請已自動清理。");
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('nightActionDetailModal')).hide();
+                await refreshNightActionDisplay();
+                setTimeout(() => {
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById('nightActionViewModal')).show();
+                }, 400);
+            } catch (e) {
+                console.error(e);
+                alert("提交失敗: " + e.message);
             }
         };
 
@@ -4770,7 +4979,7 @@
             const now = new Date();
             const h = now.getHours();
             const m = now.getMinutes();
-            const isAdmin = currentUser && (currentUser.role === 'super_admin');
+            const isAdmin = currentUser && (['super_admin', 'general_admin'].includes(currentUser.role));
             const isTimeLocked = (h > 21 || (h === 21 && m >= 1));
             const isLocked = !isAdmin && isTimeLocked;
 
@@ -4799,110 +5008,15 @@
             }, 300); // slight delay to allow backdrop transition
         };
 
-        window.proceedToNADetail = () => {
-            if (naSelectedStudents.size === 0) return alert("請先選擇人員");
-            
-            // Sync and validate type
-            const typeSelect = document.getElementById('naTypeSelect');
-            if (typeSelect && typeSelect.value) {
-                window.currentNAType = typeSelect.value;
-            }
-            
-            const type = window.currentNAType;
-            if (!type) return alert("請先選擇行動類型 (如：延長就寢)");
-
-            document.getElementById('naDetailType').value = type;
-            document.getElementById('naDetailModalTitle').innerText = `${type} - 填寫詳細資料`;
-
-            // 自動帶入寢室別與床位：若選取學生的資料一致則填入
-            const selectedIds = Array.from(naSelectedStudents);
-            const dorms = selectedIds.map(id => {
-                const s = studentsData.find(st => st.id === id);
-                return s ? (s.dorm || '') : '';
-            });
-            const beds = selectedIds.map(id => {
-                const s = studentsData.find(st => st.id === id);
-                return s ? (s.bed || '') : '';
-            });
-            const allSameDorm = dorms.length > 0 && dorms.every(d => d && d === dorms[0]);
-            const allSameBed = beds.length > 0 && beds.every(b => b && b === beds[0]);
-            document.getElementById('naDorm').value = allSameDorm ? dorms[0] : '';
-            document.getElementById('naBed').value = allSameBed ? beds[0] : '';
-
-            // Hide selection modal, show detail modal
-            bootstrap.Modal.getOrCreateInstance(document.getElementById('nightActionModal')).hide();
-            bootstrap.Modal.getOrCreateInstance(document.getElementById('nightActionDetailModal')).show();
-        };
-
-        window.submitNightActionDetail = async () => {
-            const type = document.getElementById('naDetailType').value;
-            const dorm = document.getElementById('naDorm').value.trim();
-            const bed = document.getElementById('naBed').value.trim();
-            const time = document.getElementById('naTime').value.trim();
-            const reason = document.getElementById('naReason').value.trim();
-
-            if (!bed || !time) return alert("請完整填寫床位與時間");
-            if (time.length !== 4 || isNaN(time)) return alert("時間請輸入四位數字 (如: 2200)");
-
-            try {
-                const batch = [];
-                const studentIds = Array.from(naSelectedStudents);
-                // Use currentDay instead of hardcoded today to match system navigation
-                const dateKey = currentDay; 
-
-                for (const sid of studentIds) {
-                    const student = studentsData.find(s => s.id === sid);
-                    const ref = doc(collection(db, "nightActions"));
-                    batch.push(addDoc(collection(db, "nightActions"), {
-                        date: dateKey,
-                        squadron: student.squadron,
-                        class: student.class,
-                        studentId: sid,
-                        studentName: student.name,
-                        type: type, // Should be one of: 延長就寢, 夜讀人員, 延長盥洗
-                        dorm: dorm,
-                        bed: bed,
-                        time: time,
-                        reason: reason,
-                        timestamp: serverTimestamp()
-                    }));
-                }
-
-                await Promise.all(batch);
-                bootstrap.Modal.getOrCreateInstance(document.getElementById('nightActionDetailModal')).hide();
-
-                // Clear inputs
-                document.getElementById('naDorm').value = '';
-                document.getElementById('naBed').value = '';
-                document.getElementById('naTime').value = '';
-                document.getElementById('naReason').value = '';
-
-                // Refresh and show the view modal again
-                await refreshNightActionDisplay();
-                setTimeout(() => {
-                    bootstrap.Modal.getOrCreateInstance(document.getElementById('nightActionViewModal')).show();
-                }, 300);
-            } catch (e) {
-                console.error(e);
-                alert("登錄失敗: " + e.message);
-            }
-        };
-
         async function refreshNightActionDisplay() {
-            const dateKey = currentDay; 
+            const dateKey = currentDay; console.log("[NA Sync] Refreshing...");
 
-            // Sync squadron logic with student grid
             let targetSquadron = currentSquadron;
-            // Correctly determine targetSquadron for all management roles
-            const isIntern = currentUser && [
-                'intern_battalion_leader', 'intern_deputy_battalion_leader', 'intern_battalion_po', 'intern_battalion_hq',
-                'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader', 'class_admin',
-                'district_admin'
-            ].includes(currentUser.role);
-            
-            if (isIntern && currentUser.squadron) {
+            const isRestricted = currentUser && ['intern_class_leader', 'class_admin', 'student', 'group_admin'].includes(currentUser.role);
+            if (isRestricted && currentUser.squadron) {
                 targetSquadron = currentUser.squadron;
             }
+            console.log(`[NA Sync] Unit: ${targetSquadron}, Date: ${dateKey}`);
 
             let q;
             if (targetSquadron === "一大隊" || targetSquadron === "二大隊") {
@@ -4939,14 +5053,29 @@
 
             const renderTableBody = (type) => {
                 const list = data[type] || [];
-                if (list.length === 0) return '<tr><td colspan="5" class="text-center text-muted py-3">目前無資料</td></tr>';
+                if (list.length === 0) return '<tr><td colspan="6" class="text-center text-muted py-3">目前無資料</td></tr>';
+                
+                const isAuthorized = currentUser && [
+                    'super_admin', 'general_admin', 'intern_battalion_leader', 'intern_deputy_battalion_leader', 
+                    'intern_battalion_po', 'intern_battalion_hq', 'intern_squadron_leader', 
+                    'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader', 
+                    'district_admin', 'class_admin'
+                ].includes(currentUser.role);
+
                 return list.map(item => `
                     <tr>
                         <td>${item.dorm || '-'}</td>
                         <td>${item.bed || '-'}</td>
-                        <td class="fw-bold">${item.studentName}</td>
+                        <td class="fw-bold text-primary">${item.studentName}</td>
                         <td><span class="badge bg-secondary">${item.time || '-'}</span></td>
-                        <td>${item.reason || '-'}</td>
+                        <td class="small">${item.reason || '-'}</td>
+                        <td>
+                            ${isAuthorized ? `
+                                <button class="btn btn-outline-danger btn-sm p-0 px-2" onclick="deleteNightAction('${item.docId}')" title="刪除紀錄">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            ` : '-'}
+                        </td>
                     </tr>
                 `).join('');
             };
@@ -5351,22 +5480,19 @@
                     </div>
 
                     <div class="row g-3 mb-3">
-                        <div class="col-md-6">
+                        <div class="col-md-5">
                             <div class="card shadow-sm h-100">
                                 <div class="card-header bg-dark text-white py-2">
-                                    <h6 class="mb-0 small"><i class="bi bi-tag-fill me-2"></i>1. 選擇行動類型</h6>
+                                    <h6 class="mb-0 small"><i class="bi bi-tag-fill me-2"></i>1. 選擇類型</h6>
                                 </div>
-                                <div class="card-body">
-                                    <select id="naTypeSelect" class="form-select" onchange="window.currentNAType = this.value">
-                                        <option value="">-- 請選擇類型 --</option>
-                                        <option value="延長就寢">延長就寢</option>
-                                        <option value="延長盥洗">延長盥洗</option>
-                                        <option value="夜讀人員">夜讀人員</option>
-                                    </select>
+                                <div class="card-body d-flex flex-column gap-2">
+                                    <button class="btn btn-outline-primary py-2 fw-bold na-type-btn" id="btnType_Sleep" onclick="selectNAType('延長就寢')">延長就寢</button>
+                                    <button class="btn btn-outline-primary py-2 fw-bold na-type-btn" id="btnType_Shower" onclick="selectNAType('延長盥洗')">延長盥洗</button>
+                                    <button class="btn btn-outline-primary py-2 fw-bold na-type-btn" id="btnType_Study" onclick="selectNAType('夜讀人員')">夜讀人員</button>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-7">
                             <div class="card shadow-sm h-100">
                                 <div class="card-header bg-primary text-white py-2">
                                     <h6 class="mb-0 small"><i class="bi bi-people-fill me-2"></i>2. 選擇人員</h6>
@@ -5379,6 +5505,18 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Current Records Section -->
+                    <div id="naCurrentRecordsContainer" class="card shadow-sm border-warning d-none">
+                        <div class="card-header bg-warning py-1 small fw-bold">
+                            <i class="bi bi-info-circle-fill me-1"></i> 今日已申請紀錄 (點擊垃圾桶可取消)
+                        </div>
+                        <div class="card-body p-0">
+                            <div id="naCurrentRecordsList" class="list-group list-group-flush small">
+                                <!-- JS Generated -->
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="cancelNightActionSelection()">取消</button>
@@ -5388,35 +5526,23 @@
         </div>
     </div>
 
-    <!-- Night Action Detail Modal -->
+    <!-- Night Action Detail Modal (填寫詳細資料) -->
     <div class="modal fade" id="nightActionDetailModal" tabindex="-1">
-        <div class="modal-dialog modal-sm">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h6 class="modal-title" id="naDetailModalTitle">詳細資料</h6>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content shadow-lg">
+                <div class="modal-header bg-primary text-white py-2">
+                    <h5 class="modal-title" id="naDetailModalTitle">填寫人員詳細資料</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body bg-light">
                     <input type="hidden" id="naDetailType">
-                    <div class="mb-3">
-                        <label class="form-label small">寢室別 <span class="text-muted">(已自動帶入)</span></label>
-                        <input type="text" id="naDorm" class="form-control form-control-sm" placeholder="如: S112">
+                    <div id="naIndividualDetailsList" class="d-flex flex-column gap-3">
+                        <!-- JS Generated Rows -->
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label small">床位 <span class="text-muted">(已自動帶入)</span></label>
-                        <input type="text" id="naBed" class="form-control form-control-sm" placeholder="如: 3">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small">時間 (四位數)</label>
-                        <input type="text" id="naTime" class="form-control form-control-sm" placeholder="如: 2200"
-                            maxlength="4">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small">備註原因</label>
-                        <input type="text" id="naReason" class="form-control form-control-sm"
-                            placeholder="如: 洗衣服、看書、整理內務">
-                    </div>
-                    <button class="btn btn-primary btn-sm w-100" onclick="submitNightActionDetail()">確定送出</button>
+                </div>
+                <div class="modal-footer py-2">
+                    <button class="btn btn-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#nightActionModal">回上一步</button>
+                    <button class="btn btn-primary btn-sm px-4 fw-bold shadow-sm" onclick="submitNightActionDetail()">確認送出申請</button>
                 </div>
             </div>
         </div>
@@ -5457,6 +5583,7 @@
                                             <th>姓名</th>
                                             <th>至幾點</th>
                                             <th>原因</th>
+                                            <th>操作</th>
                                         </tr>
                                     </thead>
                                     <tbody id="naTable_LateSleep"></tbody>
@@ -5474,6 +5601,7 @@
                                             <th>姓名</th>
                                             <th>至幾點</th>
                                             <th>原因</th>
+                                            <th>操作</th>
                                         </tr>
                                     </thead>
                                     <tbody id="naTable_LateShower"></tbody>
@@ -5491,6 +5619,7 @@
                                             <th>姓名</th>
                                             <th>至幾點</th>
                                             <th>原因</th>
+                                            <th>操作</th>
                                         </tr>
                                     </thead>
                                     <tbody id="naTable_Study"></tbody>
