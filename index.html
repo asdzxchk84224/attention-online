@@ -3734,19 +3734,6 @@
             document.getElementById('loginTargetName').dataset.id = studentId; // Restore missing ID setting
             document.getElementById('loginPassword').value = '';
             document.getElementById('loginError').innerText = '';
-            
-            // Reset Hint UI
-            const hintContainer = document.getElementById('loginHintContainer');
-            const hintText = document.getElementById('loginHintText');
-            hintContainer.classList.add('d-none');
-            hintText.style.display = 'none';
-            hintText.innerText = '';
-
-            const student = studentsData.find(s => s.id === studentId);
-            if (student && student.passHint) {
-                hintContainer.classList.remove('d-none');
-                hintText.innerHTML = `<i class="bi bi-lightbulb-fill text-warning me-1"></i>密碼提示：<strong>${student.passHint}</strong>`;
-            }
 
             bootstrap.Modal.getOrCreateInstance(document.getElementById('loginModal')).show();
         };
@@ -4823,23 +4810,33 @@
             }
 
             grid.innerHTML = targetStudents.map(s => `
-                <button class="btn ${naSelectedStudents.has(s.id) ? 'btn-primary text-white' : 'btn-outline-primary'} btn-sm m-1" onclick="toggleNAStudent(this, '${s.id}')">
+                <button class="btn ${naSelectedStudents.has(s.id) ? 'btn-primary text-white' : 'btn-outline-primary'} btn-sm m-1 na-student-btn" 
+                        data-sid="${s.id.replace(/"/g, '&quot;')}">
                     ${s.name}
                 </button>
             `).join('');
+
+            // Clean up old listener and add a new one for delegation
+            grid.onclick = (e) => {
+                const btn = e.target.closest('.na-student-btn');
+                if (!btn) return;
+                const sid = btn.getAttribute('data-sid');
+                window.toggleNAStudent(btn, sid);
+            };
         }
 
         window.toggleNAStudent = (btn, id) => {
+            console.log("Toggle SID:", id);
             if (!btn) return;
             
             if (naSelectedStudents.has(id)) {
                 naSelectedStudents.delete(id);
-                btn.classList.replace('btn-primary', 'btn-outline-primary');
-                btn.classList.remove('text-white');
+                btn.classList.remove('btn-primary', 'text-white');
+                btn.classList.add('btn-outline-primary');
             } else {
                 naSelectedStudents.add(id);
-                btn.classList.replace('btn-outline-primary', 'btn-primary');
-                btn.classList.add('text-white');
+                btn.classList.remove('btn-outline-primary');
+                btn.classList.add('btn-primary', 'text-white');
             }
             renderNACurrentRecords(); 
         };
