@@ -63,16 +63,20 @@
             font-weight: bold;
         }
 
-        .floating-action {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            border-radius: 50%;
-            width: 60px;
-            height: 60px;
-            font-size: 24px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-            z-index: 1000;
+        .floating-action:hover {
+            transform: scale(1.1);
+        }
+
+        /* Security Lock */
+        body.security-locked .container, 
+        body.security-locked #mgmtScheduleModal, 
+        body.security-locked .floating-action {
+            filter: blur(8px);
+            pointer-events: none;
+            user-select: none;
+        }
+        body.security-locked .modal-backdrop {
+            background-color: rgba(0,0,0,0.8) !important;
         }
 
         .custom-status-tag {
@@ -217,8 +221,8 @@
                                 <span id="userNameDisplay"></span>
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end">
-                                <li><a class="dropdown-item" href="#" data-bs-toggle="modal"
-                                        data-bs-target="#changePasswordModal"><i class="bi bi-key me-2"></i>更改密碼</a>
+                                <li><a class="dropdown-item" href="#" onclick="openAccountUpdateModal()"><i
+                                            class="bi bi-person-gear me-2"></i>帳號更新</a>
                                 </li>
                                 <li><a class="dropdown-item" href="#" onclick="openChangeDormModal()"><i
                                             class="bi bi-house-door me-2"></i>更改寢室別與床位</a>
@@ -527,10 +531,6 @@
                         <i class="bi bi-exclamation-triangle-fill me-2"></i>偵測到您正在使用預設密碼，請立即修改以確保帳號安全。
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold">電子信箱 (用於忘記密碼時接收臨時密碼)</label>
-                        <input type="email" id="userEmail" class="form-control" placeholder="請輸入常用 Email">
-                    </div>
-                    <div class="mb-3">
                         <label class="form-label fw-bold">舊密碼</label>
                         <input type="password" id="oldPass" class="form-control" placeholder="請輸入原密碼">
                     </div>
@@ -555,6 +555,57 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-primary w-100 fw-bold py-2" onclick="submitChangePassword()">確認修改並存檔</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Account Update Modal (帳號更新) -->
+    <div class="modal fade" id="accountUpdateModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-person-gear me-2"></i>帳號資訊更新</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">姓名：</label>
+                        <input type="text" id="updateUserName" class="form-control" placeholder="請輸入姓名">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">信箱更新：</label>
+                        <input type="email" id="updateUserEmail" class="form-control" placeholder="請輸入常用 Email" oninput="checkUpdateEmailDuplicate(this.value)">
+                        <div id="updateEmailDuplicateMsg" class="small mt-1 fw-bold text-danger d-none">此email已註冊</div>
+                    </div>
+
+                    <hr class="my-4">
+                    <h6 class="fw-bold text-primary mb-3"><i class="bi bi-shield-lock me-2"></i>修改密碼 (若不修改請留空)</h6>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">舊密碼：</label>
+                        <input type="password" id="updateOldPass" class="form-control form-control-sm" placeholder="請輸入原密碼">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">新密碼：</label>
+                        <input type="password" id="updateNewPass" class="form-control form-control-sm" placeholder="請輸入新密碼" onkeyup="checkUpdatePasswordStrength(this.value)">
+                        <div id="updatePassStrengthMsg" class="small mt-1 fw-bold"></div>
+                        <div class="text-muted mt-1" style="font-size: 0.75rem;">
+                            須含特殊符號、英文、數字（6 碼以上）
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">確認新密碼：</label>
+                        <input type="password" id="updateConfirmPass" class="form-control form-control-sm" placeholder="請再次輸入新密碼">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-primary">密碼提示 (選填)：</label>
+                        <input type="text" id="updatePassHint" class="form-control form-control-sm" placeholder="請輸入提示自己的暗號">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary fw-bold" onclick="submitAccountUpdate()">確認更新</button>
                 </div>
             </div>
         </div>
@@ -2766,7 +2817,25 @@
                     }
                 }
 
+                // [NEW] Security Lock Enforcement
+                const needsPassChange = (currentUser.password === '0000' || currentUser.mustChange);
+                if (needsPassChange) {
+                    document.body.classList.add('security-locked');
+                    const passModalEl = document.getElementById('changePasswordModal');
+                    const passModal = bootstrap.Modal.getOrCreateInstance(passModalEl);
+                    
+                    document.getElementById('mustChangeAlert').classList.remove('d-none');
+                    document.getElementById('closePassModalBtn').classList.add('d-none'); // Hide close button
+                    
+                    if (!passModalEl.classList.contains('show')) {
+                        setTimeout(() => passModal.show(), 500);
+                    }
+                } else {
+                    document.body.classList.remove('security-locked');
+                }
+
             } else {
+                document.body.classList.remove('security-locked');
                 adminLoginBtn.classList.remove('d-none');
                 userInfoDisplay.classList.add('d-none');
                 userInfoDisplay.classList.remove('d-flex');
@@ -2856,17 +2925,10 @@
             const delBtn = document.getElementById('deleteAllBtn');
             const resetBtn = document.getElementById('resetAllPassBtn');
             const dormBtn = document.getElementById('resetAllDormsBtn');
+            const isGlobalAdmin = currentUser && ['super_admin', 'general_admin'].includes(currentUser.role);
             
-            const isSuper = currentUser && currentUser.role === 'super_admin';
-            const isSquadronHQ = currentUser && ['intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role);
-            const isMgmtUser = currentUser && currentUser.squadron && currentUser.squadron.includes('管理階層');
-            
-            if (isSuper || isMgmtUser) {
+            if (isGlobalAdmin) {
                 if (delBtn) delBtn.classList.remove('d-none');
-                if (resetBtn) resetBtn.classList.remove('d-none');
-                if (dormBtn) dormBtn.classList.remove('d-none');
-            } else if (isSquadronHQ) {
-                if (delBtn) delBtn.classList.add('d-none'); // Delete All is still Super Admin only for safety
                 if (resetBtn) resetBtn.classList.remove('d-none');
                 if (dormBtn) dormBtn.classList.remove('d-none');
             } else {
@@ -3037,6 +3099,42 @@
             renderAdminUserList();
         };
 
+        // --- Admin Inline Edit Logic ---
+        let adminEditingUserId = null;
+
+        window.editAdminUser = (id) => {
+            adminEditingUserId = id;
+            renderAdminUserList();
+        };
+
+        window.cancelAdminEdit = () => {
+            adminEditingUserId = null;
+            renderAdminUserList();
+        };
+
+        window.saveAdminEdit = async (id) => {
+            const newName = document.getElementById(`editName_${id}`).value.trim();
+            const newEmail = document.getElementById(`editEmail_${id}`).value.trim();
+            
+            if (!newName) return alert("姓名不能為空");
+            
+            // Check email duplicate (excluding self)
+            const isDuplicated = studentsData.some(s => s.id !== id && s.email && s.email.toLowerCase() === newEmail.toLowerCase());
+            if (newEmail && isDuplicated) return alert("此 Email 已經被其他帳號註冊過了，請使用其他的 Email。");
+
+            try {
+                await updateDoc(doc(db, "students", id), {
+                    name: newName,
+                    email: newEmail
+                });
+                adminEditingUserId = null;
+                // Local sync will happen via onSnapshot
+            } catch (e) {
+                console.error("Save admin edit error:", e);
+                alert("儲存失敗: " + e.message);
+            }
+        };
+
         window.updateAdminBulkActionPanel = () => {
             const panel = document.getElementById('adminBulkActionPanel');
             const countSpan = document.getElementById('adminSelectedCount');
@@ -3183,24 +3281,18 @@
                 const isMgmtUser = currentUser.squadron && currentUser.squadron.includes('管理階層');
                 const isTargetSensitive = ['super_admin', 'general_admin', 'intern_battalion_hq'].includes(currentRole);
                 
-                // Management Cadre: ONLY can manage Roles. Cannot manage Class/Group/Name/Delete
-                const canManageClass = isGlobalAdmin || 
-                                       ((isInternLeader || isClassLeader) && !isTargetSensitive && s.squadron === currentUser.squadron);
-                
-                const canManageFull = isGlobalAdmin || 
-                                      (isInternLeader && !isTargetSensitive && s.squadron === currentUser.squadron) ||
-                                      ((isClassLeader || isClassStaff) && !isTargetSensitive && s.squadron === currentUser.squadron && s.class === currentUser.class);
-
-                const canEditName = canManageClass;
-                
-                // Special check for Management Cadre: Enable Role selection but disable others
-                const canEditRoleOnly = isMgmtUser && !isGlobalAdmin;
+                // Management Cadre and Interns: read-only access to Personnel Management
+                // The user requested that this permission is available to Interns and Management, but they are greyed out and unclickable.
+                const canManageClass = isGlobalAdmin;
+                const canManageFull = isGlobalAdmin;
+                const canEditName = isGlobalAdmin;
+                const canEditRoleOnly = false;
                 const isChecked = adminSelectedUsers.has(s.id) ? 'checked' : '';
 
                 const roleSelect = `
                     <select class="form-select form-select-sm" 
                         onchange="updateUserRole('${s.id}', this.value)" 
-                        ${(!isGlobalAdmin && !isInternLeader && !isMgmtUser) ? 'disabled' : ''}>
+                        ${!isGlobalAdmin ? 'disabled' : ''}>
                         ${roleOptions.map(opt => `<option value="${opt.val}" ${currentRole === opt.val ? 'selected' : ''}>${opt.label}</option>`).join('')}
                     </select>
                 `;
@@ -3208,27 +3300,38 @@
                 return `
                     <tr class="${isChecked ? 'table-primary-subtle' : ''}">
                         <td>
-                            <input type="checkbox" class="form-check-input" ${isChecked} onclick="toggleAdminUserSelection('${s.id}')">
+                            <input type="checkbox" class="form-check-input" ${isChecked} ${!isGlobalAdmin ? 'disabled' : ''} onclick="toggleAdminUserSelection('${s.id}')">
                         </td>
                         <td>
                             <div class="d-flex align-items-center">
-                                <div>
+                                <div class="flex-grow-1">
                                     <span class="badge bg-info text-dark me-1" style="font-size: 0.8em;">${s.squadron || '未分組'}</span>
-                                    <span class="fw-bold">${s.name}</span>
-                                    ${(s.dorm || s.bed) ? `<span class="text-muted small ms-1">${(s.dorm || '')}${(s.bed || '')}</span>` : ''}
+                                    ${s.id === adminEditingUserId ? `
+                                        <input type="text" id="editName_${s.id}" class="form-control form-control-sm mb-1" value="${s.name}" placeholder="姓名">
+                                        <input type="email" id="editEmail_${s.id}" class="form-control form-control-sm" value="${s.email || ''}" placeholder="Email">
+                                    ` : `
+                                        <span class="fw-bold">${s.name}</span>
+                                        ${(s.dorm || s.bed) ? `<span class="text-muted small ms-1">${(s.dorm || '')}${(s.bed || '')}</span>` : ''}
+                                        ${s.email ? `<div class="text-muted small"><i class="bi bi-envelope"></i> ${s.email}</div>` : ''}
+                                    `}
                                 </div>
-                                ${canEditName ? `<button class="btn btn-link btn-sm p-0 ms-2 text-primary" onclick="editUserName('${s.id}', '${s.name}')" title="修改姓名"><i class="bi bi-pencil-fill" style="font-size: 0.8rem;"></i></button>` : ''}
+                                ${canEditName ? (s.id === adminEditingUserId ? `
+                                    <button class="btn btn-link btn-sm p-0 ms-2 text-primary" onclick="saveAdminEdit('${s.id}')" title="儲存修改"><i class="bi bi-check-circle-fill" style="font-size: 1.2rem;"></i></button>
+                                    <button class="btn btn-link btn-sm p-0 ms-2 text-secondary" onclick="cancelAdminEdit()" title="取消"><i class="bi bi-x-circle-fill" style="font-size: 1.2rem;"></i></button>
+                                ` : `
+                                    <button class="btn btn-link btn-sm p-0 ms-2 text-primary" onclick="editAdminUser('${s.id}')" title="修改姓名與 Email"><i class="bi bi-pencil-fill" style="font-size: 1rem;"></i></button>
+                                `) : ''}
                             </div>
                         </td>
                         <td>
                              <div class="d-flex align-items-center">
                                 <select class="form-select form-select-sm me-1" 
-                                    ${(!canManageClass || isClassStaff || isDistrictLeader) ? 'disabled' : ''} 
+                                    ${!canManageClass ? 'disabled' : ''} 
                                     onchange="updateUserClass('${s.id}', this.value)" style="width: auto; min-width: 80px;">
                                     ${currentClassOrder.map(c => `<option value="${c}" ${s.class === c ? 'selected' : ''}>${c}</option>`).join('')}
                                 </select>
                                 <select class="form-select form-select-sm" 
-                                    ${(!canManageFull || isClassLeader || isClassStaff || isDistrictLeader) ? 'disabled' : ''} 
+                                    ${!canManageFull ? 'disabled' : ''} 
                                     onchange="updateUserGroup('${s.id}', this.value)" style="width: auto; min-width: 100px;">
                                     <option value="無" ${(!s.group || s.group === '無') ? 'selected' : ''}>無組別</option>
                                     ${currentGroupOrder.map(g => `<option value="${g}" ${s.group === g ? 'selected' : ''}>${g}</option>`).join('')}
@@ -3958,20 +4061,14 @@
                     group: student.group,
                     squadron: student.squadron,
                     dorm: student.dorm || '',
-                    bed: student.bed || ''
+                    bed: student.bed || '',
+                    password: student.password,
+                    mustChange: student.mustChange || false
                 };
                 sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
                 bootstrap.Modal.getOrCreateInstance(document.getElementById('loginModal')).hide();
                 updateAuthUI();
-                // Check if password is default or must be changed
-                if (password === '0000' || student.mustChange) {
-                    setTimeout(() => {
-                        const passModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('changePasswordModal'));
-                        document.getElementById('mustChangeAlert').classList.remove('d-none');
-                        document.getElementById('closePassModalBtn').classList.add('d-none'); // Hide X button
-                        passModal.show();
-                    }, 500);
-                }
+                
                 // 寢室別+床位：若尚未設定，或超過30天未更新，則詢問
                 {
                     const today = new Date();
@@ -4115,18 +4212,35 @@
             }
         });
 
+        window.checkEmailDuplicate = (email) => {
+            const msgObj = document.getElementById('emailDuplicateMsg');
+            if (!email) {
+                if (msgObj) msgObj.classList.add('d-none');
+                return false;
+            }
+            
+            // Check if ANY other user is using this email
+            const isDuplicated = studentsData.some(s => s.id !== currentUser.id && s.email && s.email.toLowerCase() === email.toLowerCase());
+            
+            if (isDuplicated) {
+                if (msgObj) msgObj.classList.remove('d-none');
+                return true;
+            } else {
+                if (msgObj) msgObj.classList.add('d-none');
+                return false;
+            }
+        };
+
         window.submitChangePassword = async () => {
             if (!currentUser) return;
             const oldPass = document.getElementById('oldPass').value;
             const newPass = document.getElementById('newPass').value;
             const confirmPass = document.getElementById('confirmPass').value;
             const passHint = document.getElementById('passHint').value.trim();
-            const email = document.getElementById('userEmail').value.trim();
 
             if (newPass === '0000') { alert("禁止再使用預設密碼 0000"); return; }
             if (newPass !== confirmPass) { alert("兩次新密碼輸入不一致"); return; }
-            // Removed old password equality check
-
+            
             // Complexity check (synchronized with checkPasswordStrength)
             const hasLetter = /[a-zA-Z]/.test(newPass);
             const hasNumber = /[0-9]/.test(newPass);
@@ -4149,17 +4263,16 @@
                 await updateDoc(docRef, { 
                     password: newPass,
                     passHint: passHint,
-                    email: email,
                     mustChange: false // Clear flag after update
                 });
                 alert("密碼修改成功！");
                 
                 // Update local state
                 currentUser.password = newPass;
+                currentUser.mustChange = false;
                 if (student) {
                     student.password = newPass;
                     student.passHint = passHint;
-                    student.email = email;
                     student.mustChange = false;
                 }
                 sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
@@ -4177,6 +4290,113 @@
             } catch (e) {
                 console.error(e);
                 alert("修改失敗");
+            }
+        };
+
+        // --- Account Update Logic (For Normal Users) ---
+        window.openAccountUpdateModal = () => {
+            if (!currentUser) return;
+            document.getElementById('updateUserName').value = currentUser.name;
+            document.getElementById('updateUserEmail').value = currentUser.email || '';
+            document.getElementById('updateEmailDuplicateMsg').classList.add('d-none');
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('accountUpdateModal')).show();
+        };
+
+        window.checkUpdateEmailDuplicate = (email) => {
+            const msgObj = document.getElementById('updateEmailDuplicateMsg');
+            if (!email) {
+                if (msgObj) msgObj.classList.add('d-none');
+                return false;
+            }
+            const isDuplicated = studentsData.some(s => s.id !== currentUser.id && s.email && s.email.toLowerCase() === email.toLowerCase());
+            if (isDuplicated) {
+                if (msgObj) msgObj.classList.remove('d-none');
+                return true;
+            } else {
+                if (msgObj) msgObj.classList.add('d-none');
+                return false;
+            }
+        };
+
+        window.checkUpdatePasswordStrength = (pass) => {
+            const msg = document.getElementById('updatePassStrengthMsg');
+            if (!pass) {
+                msg.innerText = '';
+                return;
+            }
+            if (pass === '0000') {
+                msg.innerText = '× 禁止使用預設密碼';
+                msg.className = 'small mt-1 fw-bold text-danger';
+                return;
+            }
+            const hasLetter = /[a-zA-Z]/.test(pass);
+            const hasNumber = /[0-9]/.test(pass);
+            const hasSpecial = /[!@#$%^&*(),.?":{}|<>\-—]/.test(pass);
+            const isLongEnough = pass.length >= 6;
+
+            if (hasLetter && hasNumber && hasSpecial && isLongEnough) {
+                msg.innerText = '● 強度：高 (安全)';
+                msg.className = 'small mt-1 fw-bold text-success';
+            } else if ((hasLetter || hasNumber) && isLongEnough) {
+                msg.innerText = '● 強度：中 (建議包含符號)';
+                msg.className = 'small mt-1 fw-bold text-warning';
+            } else {
+                msg.innerText = '● 強度：低 (不建議)';
+                msg.className = 'small mt-1 fw-bold text-danger';
+            }
+        };
+
+        window.submitAccountUpdate = async () => {
+            const name = document.getElementById('updateUserName').value.trim();
+            const email = document.getElementById('updateUserEmail').value.trim();
+            const oldPass = document.getElementById('updateOldPass').value;
+            const newPass = document.getElementById('updateNewPass').value;
+            const confirmPass = document.getElementById('updateConfirmPass').value;
+            const passHint = document.getElementById('updatePassHint').value.trim();
+            
+            if (!name) return alert("姓名不能為空");
+            if (window.checkUpdateEmailDuplicate(email)) return alert("此 Email 已經被其他帳號註冊過了，請使用其他的 Email。");
+
+            const updateData = { name, email };
+            
+            if (newPass) {
+                if (newPass === '0000') return alert("禁止再使用預設密碼 0000");
+                if (newPass !== confirmPass) return alert("兩次新密碼輸入不一致");
+                const hasLetter = /[a-zA-Z]/.test(newPass);
+                const hasNumber = /[0-9]/.test(newPass);
+                const hasSpecial = /[!@#$%^&*(),.?":{}|<>\-—]/.test(newPass);
+                if (!hasLetter || !hasNumber || !hasSpecial || newPass.length < 6) {
+                    return alert("密碼強度不足！\n須包含：英文、數字、特殊符號\n長度：至少 6 碼以上");
+                }
+                const student = studentsData.find(s => s.id === currentUser.id);
+                const currentPass = student ? student.password : currentUser.password;
+                if (currentPass !== oldPass) return alert("舊密碼錯誤");
+                
+                updateData.password = newPass;
+                updateData.passHint = passHint;
+                updateData.mustChange = false;
+            }
+
+            try {
+                await updateDoc(doc(db, "students", currentUser.id), updateData);
+                alert("更新成功！");
+                if (updateData.password) {
+                    currentUser.password = newPass;
+                    currentUser.mustChange = false;
+                }
+                currentUser.name = name;
+                currentUser.email = email;
+                sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('accountUpdateModal')).hide();
+                // Clear password fields
+                document.getElementById('updateOldPass').value = '';
+                document.getElementById('updateNewPass').value = '';
+                document.getElementById('updateConfirmPass').value = '';
+                document.getElementById('updatePassStrengthMsg').innerText = '';
+                document.getElementById('updatePassHint').value = '';
+            } catch (e) {
+                console.error(e);
+                alert("更新失敗：" + e.message);
             }
         };
 
