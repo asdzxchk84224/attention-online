@@ -294,6 +294,16 @@
         </div>
     </div>
 
+    <!-- Footer Signature -->
+    <footer class="container text-center py-5 mt-5 border-top">
+        <div class="text-muted" style="font-size: 0.85rem; line-height: 1.8; letter-spacing: 2px;">
+            <div class="fw-bold">116年班張HANK</div>
+            <div class="small opacity-50 my-1">與</div>
+            <div class="fw-bold">115年班蔡易呈</div>
+            <div class="mt-3 small opacity-75">共同製作</div>
+        </div>
+    </footer>
+
     <!-- Modals -->
     <div class="modal fade" id="addStudentModal" tabindex="-1">
         <div class="modal-dialog">
@@ -337,13 +347,13 @@
                         <div class="col-6">
                             <div class="form-floating">
                                 <input type="text" id="inputClass" class="form-control" placeholder="班級">
-                                <label for="inputClass" id="labelForClass">班級 (例: 01班)</label>
+                                <label for="inputClass" id="labelForClass">班級 <small class="text-muted">(例: 01班)</small></label>
                             </div>
                         </div>
                         <div class="col-6">
                             <div class="form-floating">
                                 <input type="text" id="inputGroup" class="form-control" placeholder="組別">
-                                <label for="inputGroup" id="labelForGroup">組別 (例: A組)</label>
+                                <label for="inputGroup" id="labelForGroup">組別 <small class="text-muted">(例: 116結構組)</small></label>
                             </div>
                         </div>
                         <div class="col-12">
@@ -426,10 +436,16 @@
                     <p id="loginTargetName" class="fw-bold text-center fs-5 mb-3"></p>
                     <input type="password" id="loginPassword" class="form-control text-center mb-3"
                         placeholder="請輸入密碼 (預設0000)" onkeydown="if(event.key === 'Enter') performLogin()">
-                    <p id="loginError" class="text-danger small text-center mb-0"></p>
+                    <p id="loginError" class="text-danger small text-center mb-0" style="min-height: 20px;"></p>
                     <div id="loginHintContainer" class="text-center mt-2 d-none">
-                        <button class="btn btn-link btn-sm text-decoration-none p-0" onclick="showLoginHint()">忘記密碼？顯示提示</button>
+                        <button class="btn btn-link btn-sm text-decoration-none p-0" onclick="showLoginHint()">密碼提示</button>
                         <div id="loginHintText" class="text-muted small mt-1" style="display:none; font-style: italic;"></div>
+                    </div>
+                    <!-- Forgot Password Section -->
+                    <div id="forgotPasswordContainer" class="mt-3 p-2 border rounded bg-light d-none">
+                        <div class="small fw-bold mb-2"><i class="bi bi-envelope-at me-1"></i>忘記密碼？</div>
+                        <input type="email" id="forgotPassEmail" class="form-control form-control-sm mb-2" placeholder="請輸入綁定的 Email">
+                        <button class="btn btn-outline-primary btn-sm w-100" onclick="requestTempPassword()">獲取臨時密碼</button>
                     </div>
                 </div>
                 <div class="modal-footer justify-content-center">
@@ -477,6 +493,10 @@
                         <i class="bi bi-exclamation-triangle-fill me-2"></i>偵測到您正在使用預設密碼，請立即修改以確保帳號安全。
                     </div>
                     <div class="mb-3">
+                        <label class="form-label fw-bold">電子信箱 (用於忘記密碼時接收臨時密碼)</label>
+                        <input type="email" id="userEmail" class="form-control" placeholder="請輸入常用 Email">
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label fw-bold">舊密碼</label>
                         <input type="password" id="oldPass" class="form-control" placeholder="請輸入原密碼">
                     </div>
@@ -485,7 +505,7 @@
                         <input type="password" id="newPass" class="form-control" placeholder="請輸入新密碼" onkeyup="checkPasswordStrength(this.value)">
                         <div id="passStrengthMsg" class="small mt-1 fw-bold"></div>
                         <div class="text-muted mt-2" style="font-size: 0.8rem;">
-                            <i class="bi bi-info-circle me-1"></i>備註：須含特殊符號、英文、數字（整組密碼需6~8碼以上）
+                            <i class="bi bi-info-circle me-1"></i>備註：須含特殊符號 (!@#$%^&*(),.?":{}|<>-—)、英文、數字（整組密碼需 6 碼以上）
                         </div>
                     </div>
                     <div class="mb-3">
@@ -896,6 +916,9 @@
             super_admin: { label: "系統開發員", type: "system" },
             management_cadre: { label: "管理階層", type: "system" },
             district_admin: { label: "實習區隊長", type: "district" },
+            intern_battalion_leader: { label: "實習大隊長", type: "battalion" },
+            intern_deputy_battalion_leader: { label: "實習副大隊長", type: "battalion" },
+            intern_battalion_po: { label: "實習大隊輔導長", type: "battalion" },
             intern_battalion_hq: { label: "實習大隊部", type: "battalion" },
             intern_squadron_leader: { label: "實習中隊長", type: "class" },
             intern_deputy_squadron_leader: { label: "實習副中隊長", type: "class" },
@@ -1693,7 +1716,8 @@
                                             
                                             const isIntern = currentUser && [
                                                 'super_admin', 'general_admin', 'management_cadre', 
-                                                'district_admin', 'intern_battalion_hq', 'intern_squadron_leader', 
+                                                'district_admin', 'intern_battalion_leader', 'intern_deputy_battalion_leader', 
+                                                'intern_battalion_po', 'intern_battalion_hq', 'intern_squadron_leader', 
                                                 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader'
                                             ].includes(currentUser.role);
                                             
@@ -1790,20 +1814,24 @@
             const groupInput = document.getElementById('inputGroup');
 
             if (sq === '管理階層') {
-                classLabel.innerText = "所屬單位 (例: 總務科)";
+                classLabel.innerHTML = '所屬單位 <small class="text-muted">(例: 總務科)</small>';
                 classInput.placeholder = "所屬單位";
-                groupLabel.innerText = "職位 (例: 科長)";
+                groupLabel.innerHTML = '職位 <small class="text-muted">(例: 科長)</small>';
                 groupInput.placeholder = "職位";
             } else {
-                classLabel.innerText = "班級 (例: 01班)";
+                classLabel.innerHTML = '班級 <small class="text-muted">(例: 01班)</small>';
                 classInput.placeholder = "班級";
-                groupLabel.innerText = "組別 (例: A組)";
+                groupLabel.innerHTML = '組別 <small class="text-muted">(例: 116結構組)</small>';
                 groupInput.placeholder = "組別";
             }
         };
 
         window.addStudent = async () => {
-            if (!currentUser || (currentUser.role !== 'super_admin' && currentUser.role !== 'general_admin' && !['class_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader'].includes(currentUser.role))) return alert("權限不足");
+            const internRoles = [
+                'intern_battalion_leader', 'intern_deputy_battalion_leader', 'intern_battalion_po', 'intern_battalion_hq',
+                'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader', 'district_admin', 'class_admin'
+            ];
+            if (!currentUser || (currentUser.role !== 'super_admin' && currentUser.role !== 'general_admin' && !internRoles.includes(currentUser.role))) return alert("權限不足");
             const classInput = document.getElementById('inputClass').value.trim();
             const groupInput = document.getElementById('inputGroup').value.trim();
             const nameInput = document.getElementById('inputName').value.trim();
@@ -1812,8 +1840,9 @@
             if (!classInput || !nameInput) return alert("請輸入班級和姓名");
 
             const targetSquadron = squadronInput || currentSquadron;
-            if (['class_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader'].includes(currentUser.role)) {
-                if (targetSquadron !== currentUser.squadron || classInput !== currentUser.class) {
+            const restrictedRoles = ['class_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader', 'district_admin'];
+            if (restrictedRoles.includes(currentUser.role)) {
+                if (targetSquadron !== currentUser.squadron || (currentUser.class && classInput !== currentUser.class)) {
                     return alert("權限不足：您只能在自己所屬的「中隊」與「建置班級」新增人員");
                 }
             }
@@ -2153,8 +2182,9 @@
             const isSuper = ['super_admin', 'general_admin'].includes(currentUser.role);
             const isMgmt = (currentUser.squadron === '管理階層' || currentUser.role === 'management_cadre');
             const isSqLeader = ['intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'squadron_admin'].includes(currentUser.role);
+            const isBattalionHQ = ['intern_battalion_leader', 'intern_deputy_battalion_leader', 'intern_battalion_po', 'intern_battalion_hq'].includes(currentUser.role);
             
-            let canEdit = isSuper || isMgmt || isSqLeader;
+            let canEdit = isSuper || isMgmt || isSqLeader || isBattalionHQ;
             
             if (!canEdit) {
                 if (currentUser.role === 'intern_class_leader' || currentUser.role === 'class_admin') {
@@ -2770,7 +2800,10 @@
             if (count === 0) return alert("請先勾選人員");
             
             const isGlobalAdmin = ['super_admin', 'general_admin'].includes(currentUser.role);
-            const isInternLeader = ['intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role);
+            const isInternLeader = [
+                'intern_battalion_leader', 'intern_deputy_battalion_leader', 'intern_battalion_po', 'intern_battalion_hq',
+                'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'
+            ].includes(currentUser.role);
             
             // Re-use ROLE_DEFS for options
             const roleOptions = Object.keys(ROLE_DEFS)
@@ -2935,7 +2968,10 @@
             const tbody = document.getElementById('adminUserListBody');
             const term = document.getElementById('adminUserSearch').value.toLowerCase();
 
-            const isInternLeader = ['intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role);
+            const isInternLeader = [
+                'intern_battalion_leader', 'intern_deputy_battalion_leader', 'intern_battalion_po', 'intern_battalion_hq',
+                'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'
+            ].includes(currentUser.role);
             const isClassLeader = (currentUser.role === 'intern_class_leader');
             const isClassStaff = (currentUser.role === 'class_admin');
             const isDistrictLeader = (currentUser.role === 'district_admin');
@@ -3102,7 +3138,10 @@
         }
 
         window.updateUserClass = async (uid, newClass) => {
-            const isInternLeader = ['intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role);
+            const isInternLeader = [
+                'intern_battalion_leader', 'intern_deputy_battalion_leader', 'intern_battalion_po', 'intern_battalion_hq',
+                'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'
+            ].includes(currentUser.role);
             const isFullAdmin = ['super_admin', 'general_admin'].includes(currentUser.role);
             
             if (!isFullAdmin && !isInternLeader) {
@@ -3130,7 +3169,10 @@
         };
 
         window.updateUserGroup = async (uid, newGroup) => {
-            const isInternLeader = ['intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role);
+            const isInternLeader = [
+                'intern_battalion_leader', 'intern_deputy_battalion_leader', 'intern_battalion_po', 'intern_battalion_hq',
+                'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'
+            ].includes(currentUser.role);
             const isFullAdmin = ['super_admin', 'general_admin'].includes(currentUser.role);
             
             if (!isFullAdmin && !isInternLeader) return alert("權限不足");
@@ -3150,7 +3192,10 @@
 
 
         window.updateUserRole = async (uid, newRole) => {
-            const isInternLeader = ['intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role);
+            const isInternLeader = [
+                'intern_battalion_leader', 'intern_deputy_battalion_leader', 'intern_battalion_po', 'intern_battalion_hq',
+                'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'
+            ].includes(currentUser.role);
             const isFullAdmin = ['super_admin', 'general_admin'].includes(currentUser.role);
             const isMgmtUser = (currentUser.role === 'management_cadre' || currentUser.squadron === '管理階層');
             
@@ -3332,7 +3377,10 @@
 
 
         window.resetUserDorm = async (uid, name) => {
-            const isInternLeader = ['intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role);
+            const isInternLeader = [
+                'intern_battalion_leader', 'intern_deputy_battalion_leader', 'intern_battalion_po', 'intern_battalion_hq',
+                'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'
+            ].includes(currentUser.role);
             const isFullAdmin = ['super_admin', 'general_admin'].includes(currentUser.role);
             if (!isFullAdmin && !isInternLeader) return alert("權限不足");
 
@@ -3705,6 +3753,65 @@
             hintText.style.display = 'block';
         };
 
+        // --- Password Recovery Logic ---
+        let loginFailCount = 0;
+
+        function generateTempPassword() {
+            const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            const numbers = "0123456789";
+            const specials = "!@#$%^&*";
+            let pass = "";
+            // Ensure complexity
+            pass += letters[Math.floor(Math.random() * letters.length)];
+            pass += numbers[Math.floor(Math.random() * numbers.length)];
+            pass += specials[Math.floor(Math.random() * specials.length)];
+            const all = letters + numbers + specials;
+            for(let i=0; i<5; i++) {
+                pass += all[Math.floor(Math.random() * all.length)];
+            }
+            // Shuffle
+            return pass.split('').sort(() => 0.5 - Math.random()).join('');
+        }
+
+        window.requestTempPassword = async () => {
+            const studentId = document.getElementById('loginTargetName').dataset.id;
+            const emailInput = document.getElementById('forgotPassEmail').value.trim();
+            const student = studentsData.find(s => s.id === studentId);
+            
+            if (!student) return;
+            if (!student.email) {
+                return alert("此帳號尚未綁定 Email，請聯繫管理員協助重置密碼。");
+            }
+            if (student.email !== emailInput) {
+                return alert("Email 不符，請確認輸入是否正確。");
+            }
+
+            const tempPass = generateTempPassword();
+            const btn = event.target;
+            btn.disabled = true;
+            btn.innerText = "發送中...";
+
+            try {
+                await updateDoc(doc(db, "students", student.id), {
+                    password: tempPass,
+                    mustChange: true
+                });
+                
+                // Simulate Email Sending
+                alert(`臨時密碼已寄送至您的信箱：\n\n${tempPass}\n\n(註：此為模擬提示，實際環境中應透過郵件寄送)`);
+                
+                // Hide forgot password UI after success
+                document.getElementById('forgotPasswordContainer').classList.add('d-none');
+                document.getElementById('loginPassword').value = tempPass; // Pre-fill for convenience
+            } catch (e) {
+                console.error(e);
+                alert("重置失敗，請稍後再試。");
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "獲取臨時密碼";
+            }
+        };
+
         window.performLogin = async () => {
             const studentId = document.getElementById('loginTargetName').dataset.id;
             const password = document.getElementById('loginPassword').value;
@@ -3713,6 +3820,10 @@
             if (!student) return;
 
             if (student.password === password) {
+                loginFailCount = 0; // Reset fails
+                document.getElementById('loginError').innerText = '';
+                document.getElementById('forgotPasswordContainer').classList.add('d-none');
+
                 currentUser = {
                     id: student.id,
                     name: student.name,
@@ -3726,8 +3837,8 @@
                 sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
                 bootstrap.Modal.getOrCreateInstance(document.getElementById('loginModal')).hide();
                 updateAuthUI();
-                // Check if password is default
-                if (password === '0000') {
+                // Check if password is default or must be changed
+                if (password === '0000' || student.mustChange) {
                     setTimeout(() => {
                         const passModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('changePasswordModal'));
                         document.getElementById('mustChangeAlert').classList.remove('d-none');
@@ -3779,7 +3890,15 @@
                     }
                 }
             } else {
-                document.getElementById('loginError').innerText = "密碼錯誤";
+                loginFailCount++;
+                const errorEl = document.getElementById('loginError');
+                errorEl.innerText = '× 密碼錯誤';
+                
+                if (loginFailCount >= 3) {
+                    document.getElementById('loginHintContainer').classList.remove('d-none');
+                    document.getElementById('forgotPasswordContainer').classList.remove('d-none');
+                    errorEl.innerText = '× 密碼多次錯誤，建議使用提示或重置';
+                }
             }
         };
 
@@ -3846,14 +3965,14 @@
             // Complexity: must have letter, number, special char, and length >= 8
             const hasLetter = /[a-zA-Z]/.test(pass);
             const hasNumber = /[0-9]/.test(pass);
-            const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(pass);
-            const isLongEnough = pass.length >= 8;
+            const hasSpecial = /[!@#$%^&*(),.?":{}|<>\-—]/.test(pass);
+            const isLongEnough = pass.length >= 6;
 
             if (hasLetter && hasNumber && hasSpecial && isLongEnough) {
                 msg.innerText = '✓ 密碼強';
                 msg.className = 'small mt-1 fw-bold text-success';
             } else {
-                msg.innerText = '× 密碼弱 (須含特殊符號、英文、數字且至少8碼)';
+                msg.innerText = '× 密碼弱 (須含特殊符號、英文、數字且至少6碼)';
                 msg.className = 'small mt-1 fw-bold text-danger';
             }
         };
@@ -3871,6 +3990,7 @@
                     
                     const student = studentsData.find(s => s.id === currentUser?.id);
                     document.getElementById('passHint').value = student?.passHint || '';
+                    document.getElementById('userEmail').value = student?.email || '';
                 });
             }
         });
@@ -3881,6 +4001,7 @@
             const newPass = document.getElementById('newPass').value;
             const confirmPass = document.getElementById('confirmPass').value;
             const passHint = document.getElementById('passHint').value.trim();
+            const email = document.getElementById('userEmail').value.trim();
 
             if (newPass === '0000') { alert("禁止再使用預設密碼 0000"); return; }
             if (newPass !== confirmPass) { alert("兩次新密碼輸入不一致"); return; }
@@ -3889,9 +4010,9 @@
             // Complexity check (synchronized with checkPasswordStrength)
             const hasLetter = /[a-zA-Z]/.test(newPass);
             const hasNumber = /[0-9]/.test(newPass);
-            const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(newPass);
-            if (!hasLetter || !hasNumber || !hasSpecial || newPass.length < 8) {
-                alert("密碼強度不足！\n須包含：英文、數字、特殊符號\n長度：至少 8 碼以上");
+            const hasSpecial = /[!@#$%^&*(),.?":{}|<>\-—]/.test(newPass);
+            if (!hasLetter || !hasNumber || !hasSpecial || newPass.length < 6) {
+                alert("密碼強度不足！\n須包含：英文、數字、特殊符號\n長度：至少 6 碼以上");
                 return;
             }
 
@@ -3907,7 +4028,9 @@
                 const docRef = doc(db, "students", currentUser.id);
                 await updateDoc(docRef, { 
                     password: newPass,
-                    passHint: passHint
+                    passHint: passHint,
+                    email: email,
+                    mustChange: false // Clear flag after update
                 });
                 alert("密碼修改成功！");
                 
@@ -3916,6 +4039,8 @@
                 if (student) {
                     student.password = newPass;
                     student.passHint = passHint;
+                    student.email = email;
+                    student.mustChange = false;
                 }
                 sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
 
@@ -4542,6 +4667,12 @@
             naSelectedStudents.clear();
             if (preSelectedId) naSelectedStudents.add(preSelectedId);
 
+            // Reset type select
+            const typeSelect = document.getElementById('naTypeSelect');
+            if (typeSelect) {
+                typeSelect.value = window.currentNAType || "";
+            }
+
             // Check Lock (21:00)
             const now = new Date();
             const hour = now.getHours();
@@ -4670,7 +4801,16 @@
 
         window.proceedToNADetail = () => {
             if (naSelectedStudents.size === 0) return alert("請先選擇人員");
+            
+            // Sync and validate type
+            const typeSelect = document.getElementById('naTypeSelect');
+            if (typeSelect && typeSelect.value) {
+                window.currentNAType = typeSelect.value;
+            }
+            
             const type = window.currentNAType;
+            if (!type) return alert("請先選擇行動類型 (如：延長就寢)");
+
             document.getElementById('naDetailType').value = type;
             document.getElementById('naDetailModalTitle').innerText = `${type} - 填寫詳細資料`;
 
@@ -4707,7 +4847,8 @@
             try {
                 const batch = [];
                 const studentIds = Array.from(naSelectedStudents);
-                const dateKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+                // Use currentDay instead of hardcoded today to match system navigation
+                const dateKey = currentDay; 
 
                 for (const sid of studentIds) {
                     const student = studentsData.find(s => s.id === sid);
@@ -4718,7 +4859,7 @@
                         class: student.class,
                         studentId: sid,
                         studentName: student.name,
-                        type: type,
+                        type: type, // Should be one of: 延長就寢, 夜讀人員, 延長盥洗
                         dorm: dorm,
                         bed: bed,
                         time: time,
@@ -4748,25 +4889,42 @@
         };
 
         async function refreshNightActionDisplay() {
-            const dateKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+            const dateKey = currentDay; 
 
             // Sync squadron logic with student grid
             let targetSquadron = currentSquadron;
-            if (currentUser && currentUser.role === 'class_admin' && currentUser.squadron) {
+            // Correctly determine targetSquadron for all management roles
+            const isIntern = currentUser && [
+                'intern_battalion_leader', 'intern_deputy_battalion_leader', 'intern_battalion_po', 'intern_battalion_hq',
+                'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader', 'class_admin',
+                'district_admin'
+            ].includes(currentUser.role);
+            
+            if (isIntern && currentUser.squadron) {
                 targetSquadron = currentUser.squadron;
             }
 
-            const q = query(collection(db, "nightActions"),
-                where("date", "==", dateKey),
-                where("squadron", "==", targetSquadron));
+            let q;
+            if (targetSquadron === "一大隊" || targetSquadron === "二大隊") {
+                const targetSquadrons = battalionStructure[targetSquadron];
+                q = query(collection(db, "nightActions"),
+                    where("date", "==", dateKey),
+                    where("squadron", "in", targetSquadrons));
+            } else {
+                q = query(collection(db, "nightActions"),
+                    where("date", "==", dateKey),
+                    where("squadron", "==", targetSquadron));
+            }
 
             const snap = await getDocs(q);
-            const data = { "延長就寢": [], "夜讀人員": [], "延盥人員": [] };
+            const data = { "延長就寢": [], "夜讀人員": [], "延長盥洗": [] };
 
             snap.forEach(docSnap => {
                 const item = docSnap.data();
                 item.docId = docSnap.id;
+                // Unified Keys
                 if (data[item.type]) data[item.type].push(item);
+                else if (item.type === '延盥人員') data["延長盥洗"].push(item); // Backward compatibility
             });
 
             // Check Lock (21:01) 
@@ -4796,7 +4954,7 @@
             const tbSleep = document.getElementById('naTable_LateSleep');
             if (tbSleep) tbSleep.innerHTML = renderTableBody("延長就寢");
             const tbShower = document.getElementById('naTable_LateShower');
-            if (tbShower) tbShower.innerHTML = renderTableBody("延盥人員");
+            if (tbShower) tbShower.innerHTML = renderTableBody("延長盥洗");
             const tbStudy = document.getElementById('naTable_Study');
             if (tbStudy) tbStudy.innerHTML = renderTableBody("夜讀人員");
         }
@@ -5192,13 +5350,32 @@
                         <i class="bi bi-lock-fill me-2"></i>目前時間已過 21:01，系統已鎖定。
                     </div>
 
-                    <div class="card shadow-sm">
-                        <div class="card-header bg-primary text-white">
-                            <h6 class="mb-0">選擇人員</h6>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <div class="card shadow-sm h-100">
+                                <div class="card-header bg-dark text-white py-2">
+                                    <h6 class="mb-0 small"><i class="bi bi-tag-fill me-2"></i>1. 選擇行動類型</h6>
+                                </div>
+                                <div class="card-body">
+                                    <select id="naTypeSelect" class="form-select" onchange="window.currentNAType = this.value">
+                                        <option value="">-- 請選擇類型 --</option>
+                                        <option value="延長就寢">延長就寢</option>
+                                        <option value="延長盥洗">延長盥洗</option>
+                                        <option value="夜讀人員">夜讀人員</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
-                        <div class="card-body p-2">
-                            <div id="naStudentGrid" class="d-flex flex-wrap overflow-auto" style="max-height: 400px;">
-                                <!-- JS Generated -->
+                        <div class="col-md-6">
+                            <div class="card shadow-sm h-100">
+                                <div class="card-header bg-primary text-white py-2">
+                                    <h6 class="mb-0 small"><i class="bi bi-people-fill me-2"></i>2. 選擇人員</h6>
+                                </div>
+                                <div class="card-body p-2">
+                                    <div id="naStudentGrid" class="d-flex flex-wrap overflow-auto" style="max-height: 250px;">
+                                        <!-- JS Generated -->
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
