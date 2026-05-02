@@ -3891,9 +3891,8 @@
                 errorEl.innerText = '× 密碼錯誤';
                 
                 if (loginFailCount >= 3) {
-                    document.getElementById('loginHintContainer').classList.remove('d-none');
                     document.getElementById('forgotPasswordContainer').classList.remove('d-none');
-                    errorEl.innerText = '× 密碼多次錯誤，建議使用提示或重置';
+                    errorEl.innerText = '× 密碼錯誤多次，建議透過信箱獲取臨時密碼重置';
                 }
             }
         };
