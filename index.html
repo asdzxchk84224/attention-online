@@ -254,15 +254,13 @@
                             onclick="setGroupBy('group')">依組別</button>
                     </div>
 
-                    <div id="mergedActionBtn" class="dropdown me-1 me-md-2">
-                        <button class="btn btn-danger d-flex align-items-center justify-content-center p-0" type="button" data-bs-toggle="dropdown" style="width: 40px; height: 40px; border-radius: 8px;" title="新增差勤／人員">
-                            <i class="bi bi-plus-lg fs-4 fw-bold" style="-webkit-text-stroke: 1.5px white;"></i>
-                        </button>
-                        <ul class="dropdown-menu shadow">
-                            <li><a class="dropdown-item py-2" href="#" onclick="showAddStudentModal()"><i class="bi bi-person-plus-fill me-2"></i>新增人員</a></li>
-                            <li><a class="dropdown-item py-2" href="#" onclick="openSettingsModal()"><i class="bi bi-gear-fill me-2"></i>新增/管理差勤項目</a></li>
-                        </ul>
-                    </div>
+                    <button id="addStudentBtn" class="btn btn-outline-primary me-1 me-md-2"
+                        onclick="showAddStudentModal()">
+                        <i class="bi bi-person-plus-fill me-1"></i><span class="d-none d-sm-inline">新增</span>
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="openSettingsModal()">
+                        <i class="bi bi-gear-fill"></i>
+                    </button>
                 </div>
             </div>
         </div>
@@ -351,8 +349,8 @@
                             <div class="form-floating">
                                 <select id="inputSquadron" class="form-select" onchange="updateAddStudentLabels()">
                                     <optgroup label="管理單位">
-                                        <option value="一校長官">一校長官</option>
-                                        <option value="二校長官">二校長官</option>
+                                        <option value="一大隊管理階層">一大隊管理階層</option>
+                                        <option value="二大隊管理階層">二大隊管理階層</option>
                                     </optgroup>
                                     <optgroup label="一大隊">
                                         <option value="一大隊大隊部">一大隊大隊部</option>
@@ -680,10 +678,6 @@
                             onclick="resetAllPasswords()" title="重置全體密碼">
                             <i class="bi bi-shield-lock-fill"></i>
                         </button>
-                        <button id="grandResetBtn" class="btn btn-danger btn-sm text-nowrap d-none"
-                            onclick="grandResetAccounts()" title="全體帳號/信箱大重置">
-                            <i class="bi bi-person-x-fill"></i>
-                        </button>
                         <button id="deleteAllBtn" class="btn btn-danger btn-sm text-nowrap d-none"
                             onclick="deleteAllUsers()" title="全部刪除">
                             <i class="bi bi-trash-fill"></i>
@@ -959,7 +953,7 @@
             const scopes = [];
 
             const isSuper = (role === 'super_admin' || role === 'general_admin');
-            const isMgmt = (currentUser.squadron && currentUser.squadron.includes('校長官'));
+            const isMgmt = (currentUser.squadron && currentUser.squadron.includes('管理階層'));
 
             if (isSuper || isMgmt) {
                 scopes.push({ val: 'global', label: '全域預設' });
@@ -980,9 +974,9 @@
 
         // 3-Level Hierarchy
         const battalionStructure = {
-            "管理單位": ["一校長官", "二校長官"],
-            "一大隊": ["一校長官", "一大隊大隊部", "一大一中", "一大二中", "一大三中", "一大四中", "一大五中", "一大六中"],
-            "二大隊": ["二校長官", "二大隊大隊部", "二大一中", "二大二中", "二大三中", "二大四中", "二大五中", "二大六中"]
+            "管理單位": ["一大隊管理階層", "二大隊管理階層"],
+            "一大隊": ["一大隊管理階層", "一大隊大隊部", "一大一中", "一大二中", "一大三中", "一大四中", "一大五中", "一大六中"],
+            "二大隊": ["二大隊管理階層", "二大隊大隊部", "二大一中", "二大二中", "二大三中", "二大四中", "二大五中", "二大六中"]
         };
 
         // Flatten for sorting (Unique)
@@ -995,7 +989,7 @@
         // Permission & Role Definitions
         const ROLE_DEFS = {
             super_admin: { label: "系統開發員", type: "system" },
-            management_cadre: { label: "長官", type: "system" },
+            management_cadre: { label: "管理階層", type: "system" },
             district_admin: { label: "實習區隊長", type: "district" },
             intern_battalion_leader: { label: "實習大隊長", type: "battalion" },
             intern_deputy_battalion_leader: { label: "實習副大隊長", type: "battalion" },
@@ -1313,21 +1307,19 @@
                 const data = { id: docSnap.id, ...docSnap.data() };
                 
                 // [AUTO-MIGRATION] Salvage legacy '管理階層' personnel based on their class
-                if (data.squadron === '管理階層' || data.squadron === '一校長官' || data.squadron === '二校長官') {
-                    const newSq = (data.class && (data.class.startsWith('二大') || data.squadron === '二校長官')) ? '二校長官' : '一校長官';
-                    if (data.squadron !== newSq) {
-                        data.squadron = newSq;
-                        try {
-                            updateDoc(doc(db, "students", data.id), { squadron: newSq });
-                        } catch (e) { console.error("Migration error:", e); }
-                    }
+                if (data.squadron === '管理階層') {
+                    const newSq = (data.class && data.class.startsWith('二大')) ? '二大隊管理階層' : '一大隊管理階層';
+                    data.squadron = newSq;
+                    try {
+                        updateDoc(doc(db, "students", data.id), { squadron: newSq });
+                    } catch (e) { console.error("Migration error:", e); }
                 }
                 
-                // [AUTO-MIGRATION FIX] Correct any cadres wrongly migrated to '一校長官' in the previous step
-                if (data.squadron === '一校長官' && data.class && data.class.startsWith('二大')) {
-                    data.squadron = '二校長官';
+                // [AUTO-MIGRATION FIX] Correct any cadres wrongly migrated to '一大隊管理階層' in the previous step
+                if (data.squadron === '一大隊管理階層' && data.class && data.class.startsWith('二大')) {
+                    data.squadron = '二大隊管理階層';
                     try {
-                        updateDoc(doc(db, "students", data.id), { squadron: '二校長官' });
+                        updateDoc(doc(db, "students", data.id), { squadron: '二大隊管理階層' });
                     } catch (e) { console.error("Migration fix error:", e); }
                 }
 
@@ -1368,7 +1360,7 @@
         window.startDayLongPress = (d) => {
             // Only allow interns and management to use long-press copy
             if (!currentUser) return;
-            const isMgmt = currentUser.squadron && currentUser.squadron.includes('校長官') || currentUser.role === 'management_cadre';
+            const isMgmt = currentUser.squadron && currentUser.squadron.includes('管理階層') || currentUser.role === 'management_cadre';
             const isIntern = ['super_admin', 'general_admin', 'class_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader', 'district_admin', 'intern_battalion_hq'].includes(currentUser.role);
             
             if (!isMgmt && !isIntern) return;
@@ -1401,14 +1393,14 @@
             if (!container) return;
             
             // [NEW] Hide for Management Level overview
-            if (currentSquadron && currentSquadron.includes('校長官')) {
+            if (currentSquadron && currentSquadron.includes('管理階層')) {
                 container.style.display = "none";
                 return;
             }
             container.style.display = "flex";
             
             days = getRollingDays(); 
-            const isMgmt = (currentUser && (currentUser.squadron && currentUser.squadron.includes('校長官') || currentUser.role === 'management_cadre'));
+            const isMgmt = (currentUser && (currentUser.squadron && currentUser.squadron.includes('管理階層') || currentUser.role === 'management_cadre'));
             
             // Standard View for everyone now (7 days rolling)
             container.className = "d-flex gap-2 overflow-x-auto pb-2 flex-nowrap mb-4";
@@ -1454,7 +1446,7 @@
             if (currentUser) {
                 const isAdmin = ['super_admin', 'general_admin'].includes(currentUser.role);
                 const isBattalionHQ = currentUser.role === 'intern_battalion_hq';
-                const isMgmtUser = currentUser.squadron && currentUser.squadron.includes('校長官');
+                const isMgmtUser = currentUser.squadron && currentUser.squadron.includes('管理階層');
 
                 if (isAdmin || isMgmtUser) {
                     // Allowed
@@ -1504,13 +1496,13 @@
             const statsContainer = document.getElementById('statusStatsSection');
             const sessionTabs = document.getElementById('sessionTabs');
             const actionContainer = document.getElementById('overviewActionButtons');
-            const isMgmtSq = (currentSquadron && currentSquadron.includes('校長官'));
+            const isMgmtSq = (currentSquadron && currentSquadron.includes('管理階層'));
 
             // [NEW] Dynamic Action Buttons Rendering
             if (actionContainer) {
                 let actionHtml = '';
                 const isDashboardAuthorized = currentUser && ((currentUser.role === 'super_admin' || currentUser.role === 'general_admin') || 
-                    (currentUser.role === 'management_cadre' || (currentUser.squadron && currentUser.squadron.includes('校長官'))) || 
+                    (currentUser.role === 'management_cadre' || (currentUser.squadron && currentUser.squadron.includes('管理階層'))) || 
                     ['intern_battalion_leader', 'intern_deputy_battalion_leader', 'intern_battalion_po', 'intern_battalion_hq', 
                      'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role));
 
@@ -1573,7 +1565,7 @@
                 // Show all squadrons in this battalion
                 const targetSquadrons = battalionStructure[currentSquadron];
                 squadronStudents = studentsData.filter(s => targetSquadrons.includes(s.squadron));
-            } else if (currentSquadron && currentSquadron.includes('校長官')) {
+            } else if (currentSquadron && currentSquadron.includes('管理階層')) {
                 // Auto-classify management personnel based on battalion
                 const targetBattalion = currentSquadron.includes('一大隊') ? '一大隊' : (currentSquadron.includes('二大隊') ? '二大隊' : null);
                 
@@ -1596,10 +1588,10 @@
             }
 
             // [NEW] Find affiliated Management Level personnel who should NOT count but should be visible
-            const mgmtAffiliated = (!currentSquadron.includes('校長官')) 
+            const mgmtAffiliated = (!currentSquadron.includes('管理階層')) 
                 ? studentsData.filter(s => {
                     if (s.role === 'management_cadre' && s.squadron === currentSquadron) return true;
-                    if (s.squadron && s.squadron.includes('校長官') && s.class === currentSquadron) return true;
+                    if (s.squadron && s.squadron.includes('管理階層') && s.class === currentSquadron) return true;
                     return false;
                 })
                 : [];
@@ -1767,7 +1759,7 @@
                 try {
                     const groupName = key;
                     const group = grouped[key];
-                    let classStatStr = currentUser ? `應到: ${group.stats.total} | 實到: ${group.stats.byStatus['實到'] || 0}` : "🔒 登入後查看統計";
+                    let classStatStr = currentUser ? `應到: ${group.stats.total} | 實到: ${group.stats.byStatus['實到'] || 0}` : "<i class='bi bi-shield-lock'></i> 隱蔽";
 
                     // Generate class detail string
                     let classDetailHtml = "";
@@ -1814,7 +1806,7 @@
                                 } else if (currentUser.id === student.id) {
                                     canEdit = true;
                                 }
-                            } else if (currentUser.squadron && currentUser.squadron.includes('校長官')) {
+                            } else if (currentUser.squadron && currentUser.squadron.includes('管理階層')) {
                                 // Management Level staff can edit each other
                                 if (student.squadron === currentUser.squadron) {
                                     canEdit = true;
@@ -1834,17 +1826,17 @@
                             r.status === 'pending'
                         );
 
-                        // [PRIVACY] Hide status from non-logged-in users
+                        // [PRIVACY] Status column shows lock if not logged in
                         let statusDisplay;
                         if (!currentUser) {
-                            statusDisplay = `<span style="color: #cbd5e1; font-size: 0.8rem;">🔒</span>`;
+                            statusDisplay = `<span class="fw-bold" style="font-size: 1.2rem; color: #64748b;">🔒</span>`;
                         } else {
                             statusDisplay = getStatusBadge(student._currentStatus);
                         }
                         
                         let rowStyle = "";
 
-                        if (pendingReq) {
+                        if (pendingReq && currentUser) {
                             statusDisplay = `<span class="badge bg-warning text-dark">審核中: ${pendingReq.newStatus}</span>`;
                             canEdit = false; // Lock editing while pending
                             rowStyle = "background-color: #fff3cd;"; // Light yellow row
@@ -1870,13 +1862,13 @@
                         <tr style="${rowStyle}">
                             <td>
                                 <span class="fw-bold ${getNameColorClass(student._currentStatus)}" ${nameAction}>${student.name}</span>${roleTitleHtml}${(student.dorm || student.bed) ? ` <span class="text-muted small">${(student.dorm || '')}${(student.bed || '')}</span>` : ''}
-                                <br><span class="badge bg-light text-secondary border">${(student.squadron && !(currentSquadron && currentSquadron.includes('校長官'))) ? student.squadron + ' / ' : ''}${student.class} / ${student.group || '-'}</span>
+                                <br><span class="badge bg-light text-secondary border">${(student.squadron && !(currentSquadron && currentSquadron.includes('管理階層'))) ? student.squadron + ' / ' : ''}${student.class} / ${student.group || '-'}</span>
                             </td>
                             <td>${statusDisplay}</td>
                             <td class="text-center">
                                 ${(pendingReq && currentUser && (currentUser.id === pendingReq.requesterId || currentUser.role === 'super_admin')) ?
                                 `<button class="btn btn-sm btn-outline-danger w-100 fw-bold" onclick="cancelRequest('${pendingReq.id}')">取消申請</button>` :
-                                (canEdit ? ((student.role === 'management_cadre' || (student.squadron && student.squadron.includes('校長官'))) ? 
+                                (canEdit ? ((student.role === 'management_cadre' || (student.squadron && student.squadron.includes('管理階層'))) ? 
                                     `<div class="d-flex w-100" style="max-width: 130px; margin: 0 auto;">
                                         <button class="btn btn-sm btn-primary fw-bold p-1 w-100" 
                                             style="font-size: 0.75rem;"
@@ -2004,7 +1996,7 @@
             const classInput = document.getElementById('inputClass');
             const groupInput = document.getElementById('inputGroup');
 
-            if (sq && sq.includes('校長官')) {
+            if (sq && sq.includes('管理階層')) {
                 classLabel.innerHTML = '所屬單位 <small class="text-muted">(例: 總務科)</small>';
                 classInput.placeholder = "所屬單位";
                 groupLabel.innerHTML = '職位 <small class="text-muted">(例: 科長)</small>';
@@ -2108,12 +2100,12 @@
             const student = studentsData.find(s => s.id === id);
             if (!student) return;
 
-            const isMgmtTarget = (student.squadron && student.squadron.includes('校長官'));
+            const isMgmtTarget = (student.squadron && student.squadron.includes('管理階層'));
             const isGlobalAdmin = ['super_admin', 'general_admin'].includes(currentUser.role);
-            const isMgmtUser = (currentUser.role === 'management_cadre' || (currentUser.squadron && currentUser.squadron.includes('校長官')));
+            const isMgmtUser = (currentUser.role === 'management_cadre' || (currentUser.squadron && currentUser.squadron.includes('管理階層')));
 
             // If user is in Management squadron, they can ONLY edit other Management people (Unless Global Admin)
-            if (!isGlobalAdmin && currentUser.squadron && currentUser.squadron.includes('校長官')) {
+            if (!isGlobalAdmin && currentUser.squadron && currentUser.squadron.includes('管理階層')) {
                 if (!isMgmtTarget) {
                     // Allowed to view other squadrons, but not edit
                     return alert("檢視模式：您僅能檢視所屬單位，無法變更其學生狀態");
@@ -2377,7 +2369,7 @@
             
             // [NEW] Role-based scope restriction
             const isSuper = ['super_admin', 'general_admin'].includes(currentUser.role);
-            const isMgmt = (currentUser.squadron && currentUser.squadron.includes('校長官')) || currentUser.role === 'management_cadre';
+            const isMgmt = (currentUser.squadron && currentUser.squadron.includes('管理階層')) || currentUser.role === 'management_cadre';
             const isSqLeader = ['intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'squadron_admin'].includes(currentUser.role);
             const isBattalionHQ = ['intern_battalion_leader', 'intern_deputy_battalion_leader', 'intern_battalion_po', 'intern_battalion_hq'].includes(currentUser.role);
             
@@ -2524,7 +2516,7 @@
             if (currentUser.role === 'super_admin' || currentUser.role === 'general_admin') canReset = true;
             if (currentUser.role === 'management_cadre') {
                 // Can reset their own affiliated management group
-                if (currentSquadron && currentSquadron.includes('校長官') && currentUser.class === groupName) {
+                if (currentSquadron && currentSquadron.includes('管理階層') && currentUser.class === groupName) {
                     canReset = true;
                 }
             }
@@ -2683,7 +2675,7 @@
                 });
                 
                 // [AUTO-FIX] Seed Management Levels with requested custom statuses
-                const mgmtUnits = ["一校長官", "二校長官"];
+                const mgmtUnits = ["一大隊管理階層", "二大隊管理階層"];
                 const requiredMgmtStatuses = [...DEFAULT_STATUSES, "值星", "任務", "休假", "留守"];
                 mgmtUnits.forEach(unit => {
                     // If unit config doesn't exist, OR it's missing '實到' (meaning it suffered from the overwrite bug)
@@ -2824,7 +2816,7 @@
 
                 // Admin detection based on role type or squadron
                 const isGlobalAdmin = ['super_admin', 'general_admin'].includes(currentUser.role);
-                const isMgmtUser = (currentUser.squadron && currentUser.squadron.includes('校長官')) || currentUser.role === 'management_cadre';
+                const isMgmtUser = (currentUser.squadron && currentUser.squadron.includes('管理階層')) || currentUser.role === 'management_cadre';
                 const isInternAdmin = ['class_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader', 'district_admin'].includes(currentUser.role);
                 
                 isAdmin = isGlobalAdmin || isMgmtUser || isInternAdmin || (currentUser.role === 'group_admin');
@@ -2857,12 +2849,12 @@
                     else exportDormLink.classList.add('d-none');
                 }
 
-                // Control Add Action Button visibility
-                const mergedActionBtn = document.getElementById('mergedActionBtn');
-                if (currentUser && currentUser.role !== 'student') {
-                    if (mergedActionBtn) mergedActionBtn.classList.remove('d-none');
+                // Control Add Student Button visibility
+                const addStudentBtn = document.getElementById('addStudentBtn');
+                if (currentUser.role === 'super_admin' || currentUser.role === 'general_admin' || ['class_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader', 'district_admin'].includes(currentUser.role)) {
+                    addStudentBtn.classList.remove('d-none');
                 } else {
-                    if (mergedActionBtn) mergedActionBtn.classList.add('d-none');
+                    addStudentBtn.classList.add('d-none');
                 }
 
                 // Toggle Bulk Rename Button
@@ -2917,8 +2909,8 @@
                 // Requirement: "Student Cadre cannot add". 
                 // If not logged in, who are they? Guest. Should Guest add? Probably not.
                 // Let's hide it for consistency.
-                const mergedActionBtn = document.getElementById('mergedActionBtn');
-                if (mergedActionBtn) mergedActionBtn.classList.add('d-none');
+                const addStudentBtn = document.getElementById('addStudentBtn');
+                if (addStudentBtn) addStudentBtn.classList.add('d-none');
             }
             renderSquadronDropdown();
             renderAll(); // Re-render to update permissions
@@ -2927,7 +2919,7 @@
             // Update Quick Status Button Label based on role
             const qsBtnLabel = document.getElementById('quickStatusBtnLabel');
             if (qsBtnLabel) {
-                const isMgmt = currentUser && (currentUser.squadron && currentUser.squadron.includes('校長官') || currentUser.role === 'management_cadre');
+                const isMgmt = currentUser && (currentUser.squadron && currentUser.squadron.includes('管理階層') || currentUser.role === 'management_cadre');
                 qsBtnLabel.innerText = isMgmt ? "任務差勤" : "快速差勤";
             }
         }
@@ -2939,7 +2931,7 @@
             const userBattalion = currentUser ? getBattalionFromSquadron(currentUser.squadron) : null;
             const isBattalionHQ = currentUser && currentUser.role === 'intern_battalion_hq';
             const isGlobalAdmin = currentUser && ['super_admin', 'general_admin'].includes(currentUser.role);
-            const isMgmtCadre = currentUser && (currentUser.role === 'management_cadre' || (currentUser.squadron && currentUser.squadron.includes('校長官')));
+            const isMgmtCadre = currentUser && (currentUser.role === 'management_cadre' || (currentUser.squadron && currentUser.squadron.includes('管理階層')));
 
             let html = "";
             
@@ -2957,7 +2949,7 @@
                 html += renderBattalionGroup("二大隊");
             } else if (isMgmtCadre) {
                 // Management Cadre: Show Management Level AND their Affiliated Unit
-                html += `<li><a class="dropdown-item fw-bold" href="#" onclick="switchSquadron('校長官')">校長官</a></li>`;
+                html += `<li><a class="dropdown-item fw-bold" href="#" onclick="switchSquadron('管理階層')">管理階層</a></li>`;
                 if (currentUser.class) {
                     html += `<li><hr class="dropdown-divider"></li>`;
                     html += `<li><a class="dropdown-item text-primary" href="#" onclick="switchSquadron('${currentUser.class}')">${currentUser.class} (所屬單位)</a></li>`;
@@ -2967,7 +2959,7 @@
                 html += `<li><a class="dropdown-item fw-bold" href="#" onclick="switchSquadron('${currentUser.squadron}')">${currentUser.squadron}</a></li>`;
                 
                 // [NEW] Also check if they have an affiliated unit (for non-cadre management)
-                if ((currentUser.squadron === '一校長官' || currentUser.squadron === '二校長官') && currentUser.class) {
+                if (currentUser.squadron === '管理階層' && currentUser.class) {
                     html += `<li><hr class="dropdown-divider"></li>`;
                     html += `<li><a class="dropdown-item text-primary" href="#" onclick="switchSquadron('${currentUser.class}')">${currentUser.class} (所屬單位)</a></li>`;
                 }
@@ -2995,19 +2987,16 @@
             const delBtn = document.getElementById('deleteAllBtn');
             const resetBtn = document.getElementById('resetAllPassBtn');
             const dormBtn = document.getElementById('resetAllDormsBtn');
-            const grandResetBtn = document.getElementById('grandResetBtn');
             const isGlobalAdmin = currentUser && ['super_admin', 'general_admin'].includes(currentUser.role);
             
             if (isGlobalAdmin) {
                 if (delBtn) delBtn.classList.remove('d-none');
                 if (resetBtn) resetBtn.classList.remove('d-none');
                 if (dormBtn) dormBtn.classList.remove('d-none');
-                if (grandResetBtn) grandResetBtn.classList.remove('d-none');
             } else {
                 if (delBtn) delBtn.classList.add('d-none');
                 if (resetBtn) resetBtn.classList.add('d-none');
                 if (dormBtn) dormBtn.classList.add('d-none');
-                if (grandResetBtn) grandResetBtn.classList.add('d-none');
             }
             bootstrap.Modal.getOrCreateInstance(document.getElementById('adminDashboardModal')).show();
         };
@@ -3042,53 +3031,6 @@
             } catch (e) {
                 console.error(e);
                 alert("刪除過程中發生錯誤：" + e.message);
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = originalText;
-            }
-        };
-
-        window.grandResetAccounts = async () => {
-            const isGlobalAdmin = currentUser && ['super_admin', 'general_admin'].includes(currentUser.role);
-            if (!isGlobalAdmin) return;
-            
-            const targets = studentsData.filter(s => !['super_admin', 'general_admin'].includes(s.role));
-            const count = targets.length;
-            if (count === 0) return alert("沒有符合重置條件的人員。");
-
-            if (!confirm(`⛔ 極危險操作警告 (1/2)\n\n您確定要將 ${count} 位人員的「帳號(信箱)」清空、並將「密碼」重置為 0000 嗎？\n\n這會導致除了系統管理員以外的所有人暫時無法登入。`)) return;
-            if (!confirm(`🛑 最後確認 (2/2)\n\n此動作將立即開始大量更新資料庫且無法復原。確定要執行嗎？`)) return;
-
-            const btn = document.getElementById('grandResetBtn');
-            const originalText = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>...';
-
-            try {
-                // Batch up to 500
-                let chunks = [];
-                for (let i = 0; i < targets.length; i += 500) {
-                    chunks.push(targets.slice(i, i + 500));
-                }
-
-                for (let chunk of chunks) {
-                    const batch = writeBatch(db);
-                    chunk.forEach(s => {
-                        const docRef = doc(db, "students", s.id);
-                        batch.update(docRef, { 
-                            email: "", 
-                            password: '0000',
-                            passHint: deleteField()
-                        });
-                    });
-                    await batch.commit();
-                }
-
-                alert(`重置成功！已將 ${count} 位人員的帳號與密碼重置完成。`);
-                renderAdminUserList();
-            } catch (e) {
-                console.error(e);
-                alert("重置失敗: " + e.message);
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalText;
@@ -3348,7 +3290,7 @@
                 if (isDistrictLeader && s.squadron !== currentUser.squadron) return false;
 
                 // [NEW] Management Cadre cannot see System Admins
-                const isMgmtViewer = currentUser.role === 'management_cadre' || (currentUser.squadron && currentUser.squadron.includes('校長官'));
+                const isMgmtViewer = currentUser.role === 'management_cadre' || (currentUser.squadron && currentUser.squadron.includes('管理階層'));
                 const isSystemAdminViewer = ['super_admin', 'general_admin'].includes(currentUser.role);
                 if (isMgmtViewer && !isSystemAdminViewer) {
                     if (['super_admin', 'general_admin'].includes(s.role)) return false;
@@ -3406,7 +3348,7 @@
                 // E.g. 'super_admin' might not have a squadron, but 'intern_battalion_hq' might.
                 // However, intern leaders usually won't manage battalion hq.
                 const isGlobalAdmin = ['super_admin', 'general_admin'].includes(currentUser.role);
-                const isMgmtUser = currentUser.squadron && currentUser.squadron.includes('校長官');
+                const isMgmtUser = currentUser.squadron && currentUser.squadron.includes('管理階層');
                 const isTargetSensitive = ['super_admin', 'general_admin', 'intern_battalion_hq'].includes(currentRole);
                 
                 // Management Cadre and Interns: read-only access to Personnel Management
@@ -3552,7 +3494,7 @@
                 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'
             ].includes(currentUser.role);
             const isFullAdmin = ['super_admin', 'general_admin'].includes(currentUser.role);
-            const isMgmtUser = (currentUser.role === 'management_cadre' || currentUser.squadron === '一校長官' || currentUser.squadron === '二校長官');
+            const isMgmtUser = (currentUser.role === 'management_cadre' || currentUser.squadron === '管理階層');
             
             if (!isFullAdmin && !isInternLeader && !isMgmtUser) {
                 alert("您沒有權限執行此操作。");
@@ -3574,8 +3516,8 @@
                 }
             } else if (isMgmtUser && !isFullAdmin) {
                 // Management Cadre can only edit Management people
-                if (!target.squadron || !target.squadron.includes('校長官')) {
-                    alert("權限不足：您僅能變更長官人員的角色");
+                if (!target.squadron || !target.squadron.includes('管理階層')) {
+                    alert("權限不足：您僅能變更管理階層人員的角色");
                     renderAdminUserList();
                     return;
                 }
@@ -4221,22 +4163,6 @@
                 sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
                 bootstrap.Modal.getOrCreateInstance(document.getElementById('loginModal')).hide();
                 updateAuthUI();
-
-                // [NEW] Email Collection Prompt
-                if (!student.email) {
-                    let emailPrompt = prompt("為了方便寄送臨時密碼至信箱，請輸入您的常用 Email：");
-                    if (emailPrompt) {
-                        emailPrompt = emailPrompt.trim();
-                        if (emailPrompt) {
-                            try {
-                                await updateDoc(doc(db, "students", student.id), { email: emailPrompt });
-                                currentUser.email = emailPrompt;
-                                student.email = emailPrompt;
-                                sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
-                            } catch(e) { console.error("Email update error", e); }
-                        }
-                    }
-                }
                 
                 // 寢室別+床位：若尚未設定，或超過30天未更新，則詢問
                 {
@@ -4305,7 +4231,7 @@
             const p = document.getElementById('adminPassword').value;
 
             const admins = [
-                { u: 'admin', p: '!QAZ2wsx3edc4rfv', name: '管理員', role: 'super_admin', squadron: '一校長官' },
+                { u: 'admin', p: '!QAZ2wsx3edc4rfv', name: '管理員', role: 'super_admin', squadron: '管理階層' },
                 { u: '2-1', p: 'QAZwsx', name: '值星幹部', role: 'general_admin', customRoleTitle: '值星幹部', squadron: '二大一中' }
             ];
 
@@ -4322,19 +4248,6 @@
                 sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
                 bootstrap.Modal.getOrCreateInstance(document.getElementById('adminLoginModal')).hide();
                 updateAuthUI();
-
-                // [NEW] Admin Email Collection Prompt (If missing)
-                if (!match.email) {
-                    let emailPrompt = prompt("為了方便寄送臨時密碼至信箱，請輸入您的常用 Email：");
-                    if (emailPrompt) {
-                        emailPrompt = emailPrompt.trim();
-                        if (emailPrompt) {
-                            currentUser.email = emailPrompt;
-                            sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
-                            // Note: Static admins don't update DB here, but session is updated
-                        }
-                    }
-                }
             } else {
                 document.getElementById('adminLoginError').innerText = "帳號或密碼錯誤";
             }
@@ -4344,6 +4257,9 @@
             currentUser = null;
             sessionStorage.removeItem('currentUser');
             updateAuthUI();
+            // Force location reload to clear all states if needed, but renderAll should suffice
+            // window.location.reload(); 
+            renderAll(); 
         };
 
         window.checkPasswordStrength = (pass) => {
@@ -4845,7 +4761,7 @@
         window.openMgmtScheduleModal = () => {
             // 3. Permission UI updates
             const isGlobalAdmin = ['super_admin', 'general_admin'].includes(currentUser.role);
-            const isMgmtUser = currentUser.role === 'management_cadre' || (currentUser.squadron && currentUser.squadron.includes('校長官'));
+            const isMgmtUser = currentUser.role === 'management_cadre' || (currentUser.squadron && currentUser.squadron.includes('管理階層'));
             // Management cadre can only edit if viewing their own unit
             const isAuthorized = isGlobalAdmin || (isMgmtUser && currentSquadron === currentUser.squadron);
 
@@ -5208,7 +5124,7 @@
 
             // [NEW] Intercept for Management Levels
             const activeSq = typeof currentSquadron !== 'undefined' ? currentSquadron : null;
-            if (activeSq && activeSq.includes('校長官')) {
+            if (activeSq && activeSq.includes('管理階層')) {
                 openMgmtScheduleModal();
                 return;
             }
@@ -5293,7 +5209,7 @@
                 // Filter available classes to the active squadron tab
                 let activeSq = typeof currentSquadron !== 'undefined' ? currentSquadron : null;
                 const classLabel = document.getElementById('qsTargetClassLabel');
-                const isMgmtTab = activeSq && activeSq.includes('校長官');
+                const isMgmtTab = activeSq && activeSq.includes('管理階層');
                 const isMgmtUser = currentUser.role === 'management_cadre';
 
                 if (isMgmtTab || isMgmtUser) {
@@ -5341,7 +5257,7 @@
             }
 
             // 2. Populate Date Checkboxes
-            const isMgmt = (currentUser && (currentUser.role === 'management_cadre' || currentUser.squadron === '一校長官' || currentUser.squadron === '二校長官'));
+            const isMgmt = (currentUser && (currentUser.role === 'management_cadre' || currentUser.squadron === '管理階層'));
             
             if (isMgmt) {
                 // Management: Toggleable Dual Month Calendar View (Always shows current & next month)
@@ -5439,7 +5355,7 @@
             }).join('');
 
             const sessionGroup = sessionContainer.closest('.mb-3');
-            if (currentSquadron && currentSquadron.includes('校長官')) {
+            if (currentSquadron && currentSquadron.includes('管理階層')) {
                 if (sessionGroup) sessionGroup.classList.add('d-none');
             } else {
                 if (sessionGroup) sessionGroup.classList.remove('d-none');
@@ -5481,11 +5397,11 @@
 
             let activeSquadron = null;
             if (currentUser) {
-                const isMgmt = currentUser.squadron === '一校長官' || currentUser.squadron === '二校長官';
+                const isMgmt = currentUser.squadron === '管理階層';
                 if (['class_admin', 'group_admin', 'squadron_admin', 'intern_class_leader', 'district_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role)) {
                     activeSquadron = currentUser.squadron || currentSquadron || null;
                 } else if (isMgmt) {
-                    activeSquadron = currentSquadron || '一校長官';
+                    activeSquadron = currentSquadron || '管理階層';
                 } else if (typeof currentSquadron !== 'undefined') {
                     activeSquadron = currentSquadron;
                 }
@@ -5496,7 +5412,7 @@
                     if (activeSquadron === '一大隊' || activeSquadron === '二大隊') {
                         const targetSquadrons = battalionStructure[activeSquadron];
                         if (targetSquadrons && (!s.squadron || !targetSquadrons.includes(s.squadron))) return false;
-                    } else if (activeSquadron.includes('校長官')) {
+                    } else if (activeSquadron.includes('管理階層')) {
                         const targetBattalion = activeSquadron.includes('一大隊') ? '一大隊' : (activeSquadron.includes('二大隊') ? '二大隊' : null);
                         if (s.squadron !== activeSquadron) {
                             if (s.role === 'management_cadre') {
@@ -5532,12 +5448,12 @@
             let selectedSessions = Array.from(document.querySelectorAll('input[name="qsSession"]:checked')).map(cb => cb.value);
 
             // [NEW] Management Level: Auto-select all sessions if hidden
-            if (currentSquadron && currentSquadron.includes('校長官') && selectedSessions.length === 0) {
+            if (currentSquadron && currentSquadron.includes('管理階層') && selectedSessions.length === 0) {
                 selectedSessions = sessions; // Refers to global sessions array
             }
 
             const isMgmtUser = (currentUser && currentUser.role === 'management_cadre');
-            const isMgmtTarget = (currentSquadron && currentSquadron.includes('校長官'));
+            const isMgmtTarget = (currentSquadron && currentSquadron.includes('管理階層'));
 
             // 2. Validation
             if (selectedDays.length === 0) return alert("請至少選擇一個日期");
@@ -5546,7 +5462,7 @@
 
             // Management User check
             if (isMgmtUser && !isMgmtTarget) {
-                return alert("檢視模式：快速設定僅限用於「長官」人員");
+                return alert("檢視模式：快速設定僅限用於「管理階層」人員");
             }
 
             let targetIds = [];
@@ -5651,7 +5567,7 @@
             
             // Role-based scope restriction (matching single status update logic)
             const isSuper = ['super_admin', 'general_admin'].includes(currentUser.role);
-            const isMgmt = (currentUser.squadron === '一校長官' || currentUser.squadron === '二校長官' || currentUser.role === 'management_cadre');
+            const isMgmt = (currentUser.squadron === '管理階層' || currentUser.role === 'management_cadre');
             const isSqLeader = ['intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'squadron_admin'].includes(currentUser.role);
             
             let canEdit = isSuper || isMgmt || isSqLeader;
@@ -6123,16 +6039,13 @@
 
             if (!statsContainer) return;
 
-            // [PRIVACY] Hide statistics and management details if not logged in
+            // [PRIVACY] Hide details if not logged in
             if (!currentUser) {
                 statsContainer.innerHTML = `
-                    <div class="d-flex align-items-center justify-content-center w-100 py-3 text-muted" style="background: rgba(248, 250, 252, 0.5); border-radius: 8px;">
-                        <i class="bi bi-shield-lock me-2"></i> 登入後即可查看詳細差勤統計與管理幹部狀態
+                    <div class="d-flex align-items-center justify-content-center w-100 py-2 text-muted" style="background: rgba(248, 250, 252, 0.4); border-radius: 8px;">
+                        <i class="bi bi-shield-lock me-2"></i> 狀態與統計資料已隱蔽 (請點選下方人員名單登入)
                     </div>`;
                 if (dropdownContainer) dropdownContainer.innerHTML = '';
-                // Also hide the mgmt list if it exists
-                const mgmtList = document.getElementById('mgmtAffiliatedList');
-                if (mgmtList) mgmtList.innerHTML = '';
                 return;
             }
 
@@ -6201,10 +6114,12 @@
             // [NEW] 3. Render Actions (Restricted to Interns and Management)
             if (!dropdownContainer) return;
             
-            const isDashboardAuthorized = (currentUser.role === 'super_admin' || currentUser.role === 'general_admin') || 
-                (currentUser.role === 'management_cadre' || (currentUser.squadron && currentUser.squadron.includes('校長官'))) || 
+            const isDashboardAuthorized = currentUser && (
+                (currentUser.role === 'super_admin' || currentUser.role === 'general_admin') || 
+                (currentUser.role === 'management_cadre' || (currentUser.squadron && currentUser.squadron.includes('管理階層'))) || 
                 ['intern_battalion_leader', 'intern_deputy_battalion_leader', 'intern_battalion_po', 'intern_battalion_hq', 
-                 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role);
+                 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role)
+            );
 
             let html = '';
             if (isDashboardAuthorized) {
@@ -6225,7 +6140,7 @@
             // If Management Cadre OR Intern Battalion HQ, default to the Battalion view (e.g. "一大隊")
             const isHighLevel = currentUser && (
                 currentUser.role === 'management_cadre' || 
-                (currentUser.squadron && currentUser.squadron.includes('校長官')) ||
+                (currentUser.squadron && currentUser.squadron.includes('管理階層')) ||
                 (currentUser.role && currentUser.role.startsWith('intern_battalion_'))
             );
 
@@ -6266,22 +6181,25 @@
             const isGlobalAdmin = currentUser && ['super_admin', 'general_admin'].includes(currentUser.role);
             const isHighLevel = currentUser && (
                 currentUser.role === 'management_cadre' || 
-                (currentUser.squadron && currentUser.squadron.includes('校長官')) ||
+                (currentUser.squadron && currentUser.squadron.includes('管理階層')) ||
                 (currentUser.role && currentUser.role.startsWith('intern_battalion_'))
             );
 
             if (isGlobalAdmin) {
                 // System Admins see EVERYTHING
-                units = ["一大隊", ...battalionStructure["一大隊"], "二大隊", ...battalionStructure["二大隊"], "一校長官", "二校長官"];
-            } else if (isHighLevel) {
+                units = ["一大隊", ...battalionStructure["一大隊"], "二大隊", ...battalionStructure["二大隊"], "一大隊管理階層", "二大隊管理階層"];
+            } else if (isHighLevel && currentUser) {
                 // Management Cadre & Intern Battalion HQ see the whole battalion, EXCLUDING management itself
-                const batt = (currentUser.squadron && (currentUser.squadron.includes('一大隊') || currentUser.class && currentUser.class.includes('一大'))) ? '一大隊' : '二大隊';
-                const baseUnits = battalionStructure[batt];
+                const batt = (currentUser.squadron && (currentUser.squadron.includes('一大隊') || (currentUser.class && currentUser.class.includes('一大')))) ? '一大隊' : '二大隊';
+                const baseUnits = battalionStructure[batt] || [];
                 // Filter out management units from the battalion list
-                units = [batt, ...baseUnits.filter(u => !u.includes('校長官'))];
-            } else {
+                units = [batt, ...baseUnits.filter(u => !u.includes('管理階層'))];
+            } else if (currentUser) {
                 // Regular squadron users see ONLY their own squadron
                 units = [currentUser.squadron];
+            } else {
+                // Guest / Not logged in: Show generic selection or current squadron default
+                units = [currentSquadron || "一大一中"];
             }
             units = Array.from(new Set(units.filter(Boolean)));
 
@@ -6298,7 +6216,7 @@
             if (targetUnit === "一大隊" || targetUnit === "二大隊") {
                 const targetSquadrons = battalionStructure[targetUnit];
                 squadronStudents = studentsData.filter(s => targetSquadrons.includes(s.squadron));
-            } else if (targetUnit.includes('校長官')) {
+            } else if (targetUnit.includes('管理階層')) {
                 squadronStudents = studentsData.filter(s => s.squadron === targetUnit || (s.role === 'management_cadre' && getBattalionFromSquadron(s.squadron) === (targetUnit.includes('一大隊') ? '一大隊' : '二大隊')));
             } else {
                 squadronStudents = studentsData.filter(s => s.squadron === targetUnit);
@@ -6311,77 +6229,61 @@
                 a.name.localeCompare(b.name, 'zh-Hant')
             );
 
-            // 3. Render Full Session Summary View
-            let summaryHtml = `<div class="d-flex flex-column gap-4">`;
+            // 3. Group by status for CURRENT session
+            const statusKey = getStatusKey(currentSession);
+            const grouped = {};
+            let presentCount = 0;
 
-            sessions.forEach(sess => {
-                const sk = getStatusKey(sess);
-                const grp = {};
-                let excCount = 0;
-
-                squadronStudents.forEach(s => {
-                    let st = (s.status && s.status[sk]) ? stripStatusHtml(s.status[sk]) : null;
-                    if (!st || st === "實到") return;
-                    excCount++;
-                    if (!grp[st]) grp[st] = [];
-                    grp[st].push(s.name);
-                });
-
-                summaryHtml += `
-                    <div class="p-3 rounded shadow-sm bg-white border">
-                        <h6 class="fw-bold border-bottom pb-2 mb-3 text-primary">
-                            <i class="bi bi-clock-history me-2"></i>${sess}
-                        </h6>
-                        <div class="list-group list-group-flush">
-                `;
-
-                if (excCount === 0) {
-                    summaryHtml += `<div class="text-muted small py-2 ps-2">此時段全員實到。</div>`;
-                } else {
-                    Object.entries(grp).sort((a, b) => a[0].localeCompare(b[0], 'zh-Hant')).forEach(([status, names]) => {
-                        summaryHtml += `
-                            <div class="list-group-item border-0 px-0 py-2 d-flex align-items-start gap-2">
-                                <span class="badge bg-primary rounded-pill px-2 py-1 small" style="min-width: 80px;">
-                                    ${status}：${names.length}
-                                </span>
-                                <div class="flex-grow-1 small text-dark">
-                                    (${names.join('、')})
-                                </div>
-                            </div>
-                        `;
-                    });
+            squadronStudents.forEach(s => {
+                let status = (s.status && s.status[statusKey]) ? stripStatusHtml(s.status[statusKey]) : null;
+                
+                // [POLICY] If missing (null) or "實到", treat as "Present"
+                if (!status || status === "實到") {
+                    presentCount++;
+                    return; 
                 }
-                summaryHtml += `</div></div>`;
+
+                if (!grouped[status]) grouped[status] = [];
+                // [PRIVACY] Mask names if not logged in
+                const displayName = currentUser ? s.name : "🔒";
+                grouped[status].push(displayName);
             });
 
-            summaryHtml += `</div>`;
+            // 4. Render Summary View (Pure List Style)
+            let summaryHtml = `
+                <div class="p-3 bg-white">
+                    <h5 class="fw-bold text-secondary mb-3 border-bottom pb-2">
+                        時段：[${currentSession}]
+                    </h5>
+                    <div class="list-group list-group-flush">
+            `;
+
+            const sortedStatuses = Object.keys(grouped).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+
+            if (sortedStatuses.length === 0) {
+                summaryHtml += `
+                    <div class="text-center py-5 text-muted fs-4">
+                        時段：[${currentSession}] <br>
+                        目前全員實到 (無差勤人員)
+                    </div>
+                `;
+            } else {
+                sortedStatuses.forEach(status => {
+                    const names = grouped[status];
+                    summaryHtml += `
+                        <div class="list-group-item border-0 px-0 py-2 d-flex align-items-start fs-5">
+                            <span class="fw-bold text-primary me-2" style="min-width: 100px;">${status}：${names.length}</span>
+                            <span class="text-dark">(${names.join('、')})</span>
+                        </div>
+                    `;
+                });
+            }
+
+            summaryHtml += `</div></div>`;
             container.innerHTML = summaryHtml;
 
-            // 4. Render Stats Bar (Based on CURRENT session for high-level numbers)
-            const currentSk = getStatusKey(currentSession);
-            let curExc = 0;
-            squadronStudents.forEach(s => {
-                let st = (s.status && s.status[currentSk]) ? stripStatusHtml(s.status[currentSk]) : null;
-                if (st && st !== "實到") curExc++;
-            });
-            const curPre = squadronStudents.length - curExc;
-
-            statsContainer.innerHTML = `
-                <div class="card bg-white shadow-sm border-0 px-4 py-3 d-flex align-items-center gap-4 flex-row" style="border-radius: 15px;">
-                    <div class="d-flex align-items-center">
-                        <span class="text-muted small me-2">單位總人數</span>
-                        <span class="h4 mb-0 fw-bold">${squadronStudents.length}</span>
-                    </div>
-                    <div class="d-flex align-items-center border-start ps-4">
-                        <span class="text-muted small me-2">實到</span>
-                        <span class="h4 mb-0 fw-bold text-success">${curPre}</span>
-                    </div>
-                    <div class="d-flex align-items-center border-start ps-4">
-                        <span class="text-muted small me-2">差勤</span>
-                        <span class="h4 mb-0 fw-bold text-danger">${curExc}</span>
-                    </div>
-                </div>
-            `;
+            // 5. Hide Stats Bar (as requested to ONLY list the data)
+            statsContainer.innerHTML = '';
             if (timeEl) timeEl.innerText = `最後更新: ${new Date().toLocaleTimeString()}`;
         };
 
