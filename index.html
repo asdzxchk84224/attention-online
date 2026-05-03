@@ -299,20 +299,8 @@
                                 </h5>
                             </div>
 
-                            <div class="d-flex flex-column gap-2 ms-2">
-                                <button class="btn btn-outline-primary btn-sm text-nowrap" onclick="copyGlobalReport()">
-                                    <i class="bi bi-clipboard"></i> 複製總覽
-                                </button>
-                                <button class="btn btn-outline-primary btn-sm text-nowrap"
-                                    onclick="openQuickStatusModal()">
-                                    <i class="bi bi-lightning-fill"></i> <span id="quickStatusBtnLabel">任務差勤</span>
-                                </button>
-                                <button id="resetDayBtn" class="btn btn-outline-success btn-sm text-nowrap d-none" onclick="resetAllToPresent()">
-                                    <i class="bi bi-calendar-check"></i> 重置整天
-                                </button>
-                                <div id="statusOverviewTags" class="w-100 mt-1">
-                                    <!-- Status Overview dropdown will render here -->
-                                </div>
+                            <div id="overviewActionButtons" class="d-flex flex-column gap-2 ms-2">
+                                <!-- Dynamic buttons rendered here -->
                             </div>
                         </div>
                     </div>
@@ -689,6 +677,10 @@
                         <button id="resetAllPassBtn" class="btn btn-outline-danger btn-sm text-nowrap d-none"
                             onclick="resetAllPasswords()" title="重置全體密碼">
                             <i class="bi bi-shield-lock-fill"></i>
+                        </button>
+                        <button id="grandResetBtn" class="btn btn-danger btn-sm text-nowrap d-none"
+                            onclick="grandResetAccounts()" title="全體帳號/信箱大重置">
+                            <i class="bi bi-person-x-fill"></i>
                         </button>
                         <button id="deleteAllBtn" class="btn btn-danger btn-sm text-nowrap d-none"
                             onclick="deleteAllUsers()" title="全部刪除">
@@ -1404,8 +1396,15 @@
             const container = document.getElementById('weekTabs');
             if (!container) return;
             
+            // [NEW] Hide for Management Level overview
+            if (currentSquadron && currentSquadron.includes('管理階層')) {
+                container.style.display = "none";
+                return;
+            }
+            container.style.display = "flex";
+            
             days = getRollingDays(); 
-            const isMgmt = (currentUser && (currentUser.squadron.includes('管理階層') || currentUser.role === 'management_cadre'));
+            const isMgmt = (currentUser && (currentUser.squadron && currentUser.squadron.includes('管理階層') || currentUser.role === 'management_cadre'));
             
             // Standard View for everyone now (7 days rolling)
             container.className = "d-flex gap-2 overflow-x-auto pb-2 flex-nowrap mb-4";
@@ -1418,9 +1417,7 @@
                 const label = getWeekDateLabel(d);
                 const active = currentDay === d ? 'btn-primary' : 'btn-outline-secondary';
                 return `<button class="btn ${active} rounded-pill px-4 text-nowrap" 
-                        onmousedown="startDayLongPress('${d}')" onmouseup="cancelDayLongPress()" 
-                        onmouseleave="cancelDayLongPress()" ontouchstart="startDayLongPress('${d}')" 
-                        ontouchend="cancelDayLongPress()" onclick="changeDay('${d}')">${label}</button>`;
+                        onclick="changeDay('${d}')">${label}</button>`;
             }).join('');
         }
 
@@ -1502,7 +1499,58 @@
             const container = document.getElementById('classContainer');
             const statsContainer = document.getElementById('statusStatsSection');
             const sessionTabs = document.getElementById('sessionTabs');
+            const actionContainer = document.getElementById('overviewActionButtons');
             const isMgmtSq = (currentSquadron && currentSquadron.includes('管理階層'));
+
+            // [NEW] Dynamic Action Buttons Rendering
+            if (actionContainer) {
+                let actionHtml = '';
+                const isDashboardAuthorized = currentUser && ((currentUser.role === 'super_admin' || currentUser.role === 'general_admin') || 
+                    (currentUser.role === 'management_cadre' || (currentUser.squadron && currentUser.squadron.includes('管理階層'))) || 
+                    ['intern_battalion_leader', 'intern_deputy_battalion_leader', 'intern_battalion_po', 'intern_battalion_hq', 
+                     'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role));
+
+                if (isMgmtSq) {
+                    // Management Cadre Overview: Keep old buttons
+                    actionHtml = `
+                        <button class="btn btn-outline-primary btn-sm text-nowrap" onclick="copyGlobalReport()">
+                            <i class="bi bi-clipboard"></i> 複製總覽
+                        </button>
+                        <button class="btn btn-outline-primary btn-sm text-nowrap" onclick="openQuickStatusModal()">
+                            <i class="bi bi-lightning-fill"></i> 任務差勤
+                        </button>
+                        ${isDashboardAuthorized ? `
+                        <button class="btn btn-outline-info btn-sm text-nowrap" onclick="openLiveDashboard()">
+                            <i class="bi bi-grid-3x3-gap-fill"></i> 即時看板
+                        </button>` : ''}
+                    `;
+                } else {
+                    // Student Squadrons: Hamburger Menu
+                    const canReset = currentUser && ['super_admin', 'general_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role);
+                    
+                    actionHtml = `
+                        <div class="dropdown">
+                            <button class="btn btn-outline-primary btn-sm px-3" type="button" data-bs-toggle="dropdown">
+                                <i class="bi bi-list fs-5"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow">
+                                <li><button class="dropdown-item" onclick="copyGlobalReport()"><i class="bi bi-clipboard me-2"></i>複製此時段</button></li>
+                                <li><button class="dropdown-item" onclick="copyDayReport()"><i class="bi bi-calendar-range me-2"></i>複製全時段</button></li>
+                                ${canReset ? `
+                                <li><hr class="dropdown-divider"></li>
+                                <li><button class="dropdown-item text-danger" onclick="resetAllToPresent()"><i class="bi bi-calendar-check me-2"></i>重置整天</button></li>
+                                ` : ''}
+                            </ul>
+                        </div>
+                        ${isDashboardAuthorized ? `
+                        <button class="btn btn-outline-info btn-sm text-nowrap" onclick="openLiveDashboard()">
+                            <i class="bi bi-grid-3x3-gap-fill"></i> 即時看板
+                        </button>` : ''}
+                    `;
+                }
+                actionHtml += `<div id="statusOverviewTags" class="w-100 mt-1"></div>`;
+                actionContainer.innerHTML = actionHtml;
+            }
 
             if (isMgmtSq) {
                 document.getElementById('currentSessionLabel').innerText = `(${currentDay})`;
@@ -1670,6 +1718,9 @@
                 })
             });
             window.currentGlobalStats = globalStats; // For detail modal lookup
+            
+            // [NEW] Real-time Dashboard Sync
+            if (typeof renderLiveDashboard === 'function') renderLiveDashboard();
 
 
             if (Object.keys(grouped).length === 0) {
@@ -1887,7 +1938,14 @@
                                         `}
                                     </div>
                                     <div class="d-flex flex-column align-items-end">
-                                        <span class="badge bg-light text-dark opacity-75 fw-normal fs-6 mb-1">${classStatStr}</span>
+                                        <div class="d-flex align-items-center mb-1">
+                                            ${isMgmtSq ? '' : `
+                                                <button class="btn btn-sm btn-light py-0 px-2 me-2 border text-primary fw-bold" style="font-size: 0.75rem;" onclick="openQuickStatusModal('${groupName}')">
+                                                    <i class="bi bi-lightning-fill"></i> 快速差勤
+                                                </button>
+                                            `}
+                                            <span class="badge bg-light text-dark opacity-75 fw-normal fs-6">${classStatStr}</span>
+                                        </div>
                                         <div class="text-white opacity-90">${classDetailHtml}</div>
                                     </div>
                                 </div>
@@ -2050,8 +2108,8 @@
             const isGlobalAdmin = ['super_admin', 'general_admin'].includes(currentUser.role);
             const isMgmtUser = (currentUser.role === 'management_cadre' || (currentUser.squadron && currentUser.squadron.includes('管理階層')));
 
-            // If user is in Management squadron, they can ONLY edit other Management people
-            if (currentUser.squadron && currentUser.squadron.includes('管理階層')) {
+            // If user is in Management squadron, they can ONLY edit other Management people (Unless Global Admin)
+            if (!isGlobalAdmin && currentUser.squadron && currentUser.squadron.includes('管理階層')) {
                 if (!isMgmtTarget) {
                     // Allowed to view other squadrons, but not edit
                     return alert("檢視模式：您僅能檢視所屬單位，無法變更其學生狀態");
@@ -2769,6 +2827,14 @@
 
                 userNameDisplay.innerHTML = `${currentUser.name} <span class="badge bg-secondary ms-1" style="font-size: 0.7em;">${roleName}</span>`;
 
+                const isDashboardAuthorized = isGlobalAdmin || 
+                    isMgmtUser || 
+                    ['intern_battalion_leader', 'intern_deputy_battalion_leader', 'intern_battalion_po', 'intern_battalion_hq', 
+                     'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role);
+                
+                const liveDashboardBtn = document.getElementById('liveDashboardBtn');
+                if (liveDashboardBtn) liveDashboardBtn.classList.toggle('d-none', !isDashboardAuthorized);
+
                 if (isAdmin) {
                     notificationBtn.classList.remove('d-none');
                     updateNotificationBadge();
@@ -2925,22 +2991,25 @@
             const delBtn = document.getElementById('deleteAllBtn');
             const resetBtn = document.getElementById('resetAllPassBtn');
             const dormBtn = document.getElementById('resetAllDormsBtn');
+            const grandResetBtn = document.getElementById('grandResetBtn');
             const isGlobalAdmin = currentUser && ['super_admin', 'general_admin'].includes(currentUser.role);
             
             if (isGlobalAdmin) {
                 if (delBtn) delBtn.classList.remove('d-none');
                 if (resetBtn) resetBtn.classList.remove('d-none');
                 if (dormBtn) dormBtn.classList.remove('d-none');
+                if (grandResetBtn) grandResetBtn.classList.remove('d-none');
             } else {
                 if (delBtn) delBtn.classList.add('d-none');
                 if (resetBtn) resetBtn.classList.add('d-none');
                 if (dormBtn) dormBtn.classList.add('d-none');
+                if (grandResetBtn) grandResetBtn.classList.add('d-none');
             }
             bootstrap.Modal.getOrCreateInstance(document.getElementById('adminDashboardModal')).show();
         };
 
         window.deleteAllUsers = async () => {
-            if (!currentUser || currentUser.role !== 'super_admin') return;
+            if (!currentUser || !['super_admin', 'general_admin'].includes(currentUser.role)) return;
 
             if (!confirm("⚠️ 危險操作警告 (1/3)\n\n您確定要「刪除所有人員」嗎？\n\n此操作將清空系統中除了您以外的所有使用者資料！\n資料一旦刪除將無法復原！")) return;
             if (!confirm("⚠️ 再次確認 (2/3)\n\n真的要刪除嗎？\n\n這會造成嚴重的資料遺失，請確認您知道自己在做什麼！")) return;
@@ -2969,6 +3038,53 @@
             } catch (e) {
                 console.error(e);
                 alert("刪除過程中發生錯誤：" + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        };
+
+        window.grandResetAccounts = async () => {
+            const isGlobalAdmin = currentUser && ['super_admin', 'general_admin'].includes(currentUser.role);
+            if (!isGlobalAdmin) return;
+            
+            const targets = studentsData.filter(s => !['super_admin', 'general_admin'].includes(s.role));
+            const count = targets.length;
+            if (count === 0) return alert("沒有符合重置條件的人員。");
+
+            if (!confirm(`⛔ 極危險操作警告 (1/2)\n\n您確定要將 ${count} 位人員的「帳號(信箱)」清空、並將「密碼」重置為 0000 嗎？\n\n這會導致除了系統管理員以外的所有人暫時無法登入。`)) return;
+            if (!confirm(`🛑 最後確認 (2/2)\n\n此動作將立即開始大量更新資料庫且無法復原。確定要執行嗎？`)) return;
+
+            const btn = document.getElementById('grandResetBtn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>...';
+
+            try {
+                // Batch up to 500
+                let chunks = [];
+                for (let i = 0; i < targets.length; i += 500) {
+                    chunks.push(targets.slice(i, i + 500));
+                }
+
+                for (let chunk of chunks) {
+                    const batch = writeBatch(db);
+                    chunk.forEach(s => {
+                        const docRef = doc(db, "students", s.id);
+                        batch.update(docRef, { 
+                            email: "", 
+                            password: '0000',
+                            passHint: deleteField()
+                        });
+                    });
+                    await batch.commit();
+                }
+
+                alert(`重置成功！已將 ${count} 位人員的帳號與密碼重置完成。`);
+                renderAdminUserList();
+            } catch (e) {
+                console.error(e);
+                alert("重置失敗: " + e.message);
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalText;
@@ -3123,15 +3239,23 @@
             if (newEmail && isDuplicated) return alert("此 Email 已經被其他帳號註冊過了，請使用其他的 Email。");
 
             try {
+                // Optimistic UI Update: Update local data and re-render immediately
+                const idx = studentsData.findIndex(s => s.id === id);
+                if (idx !== -1) {
+                    studentsData[idx].name = newName;
+                    studentsData[idx].email = newEmail;
+                }
+                adminEditingUserId = null;
+                renderAdminUserList();
+
                 await updateDoc(doc(db, "students", id), {
                     name: newName,
                     email: newEmail
                 });
-                adminEditingUserId = null;
-                // Local sync will happen via onSnapshot
             } catch (e) {
                 console.error("Save admin edit error:", e);
                 alert("儲存失敗: " + e.message);
+                renderAdminUserList();
             }
         };
 
@@ -3454,7 +3578,6 @@
                 // Cannot assign Super/General Admin
                 if (['super_admin', 'general_admin'].includes(newRole)) {
                     alert("權限不足：您無法授權此級別的角色");
-                    renderAdminUserList();
                     return;
                 }
             }
@@ -3536,14 +3659,16 @@
         };
 
         window.resetAllPasswords = async () => {
-            const isSuper = (currentUser && currentUser.role === 'super_admin') || (currentUser && currentUser.squadron && currentUser.squadron.includes('管理階層'));
-            const isSquadronHQ = currentUser && ['intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role);
-            if (!isSuper && !isSquadronHQ) return;
+            const isGlobalAdmin = currentUser && ['super_admin', 'general_admin'].includes(currentUser.role);
+            if (!isGlobalAdmin) return alert("只有全域管理員可以重置全體密碼");
             
             let targets = studentsData;
             let scopeMsg = "全體人員";
             
-            if (!isSuper && isSquadronHQ) {
+            // Re-eval scope for intern leaders
+            const isSquadronHQ = currentUser && ['intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role);
+
+            if (!isGlobalAdmin && isSquadronHQ) {
                 targets = studentsData.filter(s => s.squadron === currentUser.squadron);
                 scopeMsg = `「${currentUser.squadron}」全體人員`;
             }
@@ -3569,14 +3694,16 @@
         };
 
         window.resetAllDorms = async () => {
-            const isSuper = (currentUser && currentUser.role === 'super_admin') || (currentUser && currentUser.squadron && currentUser.squadron.includes('管理階層'));
-            const isSquadronHQ = currentUser && ['intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role);
-            if (!isSuper && !isSquadronHQ) return;
+            const isGlobalAdmin = currentUser && ['super_admin', 'general_admin'].includes(currentUser.role);
+            if (!isGlobalAdmin) return alert("只有全域管理員可以執行此操作");
             
             let targets = studentsData;
             let scopeMsg = "全體人員";
             
-            if (!isSuper && isSquadronHQ) {
+            // Re-eval scope for intern leaders
+            const isSquadronHQ = currentUser && ['intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role);
+            
+            if (!isGlobalAdmin && isSquadronHQ) {
                 targets = studentsData.filter(s => s.squadron === currentUser.squadron);
                 scopeMsg = `「${currentUser.squadron}」全體人員`;
             }
@@ -3602,6 +3729,28 @@
             }
         };
 
+
+        window.resetUserPassword = async (uid, name) => {
+            const isInternLeader = [
+                'intern_battalion_leader', 'intern_deputy_battalion_leader', 'intern_battalion_po', 'intern_battalion_hq',
+                'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'
+            ].includes(currentUser.role);
+            const isFullAdmin = ['super_admin', 'general_admin'].includes(currentUser.role);
+            if (!isFullAdmin && !isInternLeader) return alert("權限不足");
+
+            const target = studentsData.find(s => s.id === uid);
+            if (isInternLeader && target.squadron !== currentUser.squadron) return alert("權限不足");
+
+            if (!confirm(`確定要將「${name}」的密碼重置為 0000 嗎？`)) return;
+            try {
+                await updateDoc(doc(db, "students", uid), { password: '0000' });
+                alert("密碼已重置為 0000");
+                renderAdminUserList();
+            } catch (e) {
+                console.error(e);
+                alert("重置失敗: " + e.message);
+            }
+        };
 
         window.resetUserDorm = async (uid, name) => {
             const isInternLeader = [
@@ -4294,10 +4443,13 @@
         };
 
         // --- Account Update Logic (For Normal Users) ---
-        window.openAccountUpdateModal = () => {
+        window.openAccountUpdateModal = (userId = null) => {
             if (!currentUser) return;
-            document.getElementById('updateUserName').value = currentUser.name;
-            document.getElementById('updateUserEmail').value = currentUser.email || '';
+            const targetId = userId || currentUser.id;
+            const targetUser = studentsData.find(s => s.id === targetId) || currentUser;
+            
+            document.getElementById('updateUserName').value = targetUser.name;
+            document.getElementById('updateUserEmail').value = targetUser.email || '';
             document.getElementById('updateEmailDuplicateMsg').classList.add('d-none');
             bootstrap.Modal.getOrCreateInstance(document.getElementById('accountUpdateModal')).show();
         };
@@ -4378,8 +4530,12 @@
             }
 
             try {
-                await updateDoc(doc(db, "students", currentUser.id), updateData);
-                alert("更新成功！");
+                // Optimistic UI Update
+                const idx = studentsData.findIndex(s => s.id === currentUser.id);
+                if (idx !== -1) {
+                    studentsData[idx].name = name;
+                    studentsData[idx].email = email;
+                }
                 if (updateData.password) {
                     currentUser.password = newPass;
                     currentUser.mustChange = false;
@@ -4387,7 +4543,14 @@
                 currentUser.name = name;
                 currentUser.email = email;
                 sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
+                updateAuthUI(); // Update top navbar display immediately
+                renderAll(); // Re-render main table if needed
+                
                 bootstrap.Modal.getOrCreateInstance(document.getElementById('accountUpdateModal')).hide();
+
+                await updateDoc(doc(db, "students", currentUser.id), updateData);
+                alert("更新成功！");
+                
                 // Clear password fields
                 document.getElementById('updateOldPass').value = '';
                 document.getElementById('updateNewPass').value = '';
@@ -4397,6 +4560,7 @@
             } catch (e) {
                 console.error(e);
                 alert("更新失敗：" + e.message);
+                updateAuthUI();
             }
         };
 
@@ -4407,7 +4571,11 @@
 
         // Note: other functions like addStudent, removeStudent are already assigned to window directly above.
 
-
+        window.openAdminPanel = () => {
+            if (!currentUser || !['super_admin', 'general_admin'].includes(currentUser.role)) return;
+            renderAdminUserList();
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('adminPanelModal')).show();
+        };
 
         function getStatusBadge(s) {
             if (s === '實到') return '<span class="badge bg-success">實到</span>';
@@ -4642,6 +4810,18 @@
         };
 
         window.openMgmtScheduleModal = () => {
+            // 3. Permission UI updates
+            const isGlobalAdmin = ['super_admin', 'general_admin'].includes(currentUser.role);
+            const isMgmtUser = currentUser.role === 'management_cadre' || (currentUser.squadron && currentUser.squadron.includes('管理階層'));
+            // Management cadre can only edit if viewing their own unit
+            const isAuthorized = isGlobalAdmin || (isMgmtUser && currentSquadron === currentUser.squadron);
+
+            const submitBtn = document.getElementById('mgmtScheduleSubmitBtn');
+            const batchDeleteBtn = document.getElementById('mgmtScheduleBatchDeleteBtn');
+            
+            if (submitBtn) submitBtn.classList.toggle('d-none', !isAuthorized);
+            if (batchDeleteBtn) batchDeleteBtn.classList.toggle('d-none', !isAuthorized);
+
             const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('mgmtScheduleModal'));
             
             // 1. Populate Target Students (Checkbox Grid)
@@ -4990,7 +5170,7 @@
             }
         };
 
-        window.openQuickStatusModal = () => {
+        window.openQuickStatusModal = (initialClass = null) => {
             if (!currentUser) return alert("請先登入！");
 
             // [NEW] Intercept for Management Levels
@@ -5000,13 +5180,18 @@
                 return;
             }
 
+            const isGlobalAdmin = ['super_admin', 'general_admin'].includes(currentUser.role);
+            const submitBtn = document.getElementById('quickStatusSubmitBtn');
+            if (submitBtn) {
+                const canModify = isGlobalAdmin || (currentUser.role && currentUser.role.startsWith('intern_')) || ['class_admin', 'district_admin', 'group_admin'].includes(currentUser.role);
+                submitBtn.classList.toggle('d-none', !canModify);
+            }
 
             const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('quickStatusModal'));
             const targetClassContainer = document.getElementById('qsTargetClassContainer');
             const targetStudentContainer = document.getElementById('qsTargetStudentContainer');
             const dateContainer = document.getElementById('qsDateContainer');
             const sessionContainer = document.getElementById('qsSessionContainer');
-            const statusGrid = document.getElementById('qsStatusGrid');
 
             // Reset UI
             targetClassContainer.classList.add('d-none');
@@ -5015,20 +5200,31 @@
             document.getElementById('qsTargetStudentGrid').innerHTML = '<div class="text-muted w-100 text-center">請先選擇班級</div>';
             qsSelectedStudents.clear();
             qsSelectedStatus = "";
-
             dateContainer.innerHTML = '';
             sessionContainer.innerHTML = '';
             document.getElementById('qsStatusSearchInput').value = '';
 
-            // 1. Setup Target Selection based on Role
-            if (currentUser.role === 'student') {
+            // 1. Handle Initial Class (Targeted mode from overview card)
+            if (initialClass) {
+                targetClassContainer.classList.remove('d-none');
+                targetStudentContainer.classList.remove('d-none');
+                
+                const squadronClasses = Array.from(new Set(studentsData
+                    .filter(s => s.squadron === currentSquadron)
+                    .map(s => s.class)))
+                    .sort((a,b) => (classOrder.indexOf(a) !== -1 ? classOrder.indexOf(a) : 999) - (classOrder.indexOf(b) !== -1 ? classOrder.indexOf(b) : 999));
+
+                document.getElementById('qsTargetClass').innerHTML = squadronClasses.map(c => `<option value="${c}" ${c === initialClass ? 'selected' : ''}>${c}</option>`).join('');
+                updateQuickStatusStudentList('class', initialClass);
+            } 
+            // 2. Setup Target Selection based on Role (General mode)
+            else if (currentUser.role === 'student') {
                 // Student: Target is self (Hidden)
             } else if (['class_admin', 'intern_class_leader', 'group_admin'].includes(currentUser.role)) {
                 // Intern Class Leader / Class Admin / Group Admin: Show Student Select (Filtered Scope)
                 targetStudentContainer.classList.remove('d-none');
                 const scopeType = (currentUser.role === 'group_admin') ? 'group' : 'class';
                 const scopeValue = (currentUser.role === 'group_admin') ? currentUser.group : currentUser.class;
-                
                 updateQuickStatusStudentList(scopeType, scopeValue);
             } else if (currentUser.role === 'district_admin') {
                 // Intern District Admin: Show Class Select (Filtered to managed classes)
@@ -5045,8 +5241,17 @@
                 document.getElementById('qsTargetClass').innerHTML = 
                     (classes.length > 1 ? '<option value="">請選擇班級</option>' : '') +
                     classes.map(c => `<option value="${c}" ${classes.length === 1 ? 'selected' : ''}>${c}</option>`).join('');
-                
+
                 if (classes.length === 1) updateQuickStatusStudentList('class', classes[0]);
+            } else if (isGlobalAdmin || (currentUser.role && currentUser.role.includes('leader')) || (currentUser.role && currentUser.role.includes('po')) || (currentUser.role && currentUser.role.includes('hq'))) {
+                const squadronClasses = Array.from(new Set(studentsData
+                    .filter(s => s.squadron === currentSquadron)
+                    .map(s => s.class)))
+                    .sort((a,b) => (classOrder.indexOf(a) !== -1 ? classOrder.indexOf(a) : 999) - (classOrder.indexOf(b) !== -1 ? classOrder.indexOf(b) : 999));
+
+                targetClassContainer.classList.remove('d-none');
+                document.getElementById('qsTargetClass').innerHTML = '<option value="">請選擇班級</option>' + 
+                    squadronClasses.map(c => `<option value="${c}">${c}</option>`).join('');
             } else {
                 // Super/General/Duty Admin/Intern Squadron Leaders: Show Class + Student Select
                 targetClassContainer.classList.remove('d-none');
@@ -5512,7 +5717,7 @@
             snap.forEach(docSnap => {
                 const item = docSnap.data();
                 const docId = docSnap.id;
-                const isManagement = ['super_admin', 'general_admin', 'intern_battalion_leader', 'intern_deputy_battalion_leader', 'intern_battalion_po', 'intern_battalion_hq', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader', 'district_admin', 'class_admin'].includes(currentUser.role);
+                const isManagement = currentUser && ['super_admin', 'general_admin', 'intern_battalion_leader', 'intern_deputy_battalion_leader', 'intern_battalion_po', 'intern_battalion_hq', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader', 'district_admin', 'class_admin'].includes(currentUser.role);
                 const canDelete = currentUser && (currentUser.id === item.studentId || isManagement);
                 
                 html += `
@@ -5707,7 +5912,7 @@
                     // 1. Deduplication: Delete any existing same-day, same-type records for this student
                     const qOld = query(collection(db, "nightActions"), 
                         where("date", "==", dateKey),
-                        where("studentId", "==", sid),
+                        where("studentId", "in", [sid]),
                         where("type", "==", type)
                     );
                     const oldSnap = await getDocs(qOld);
@@ -5825,11 +6030,9 @@
             const now = new Date();
             const h = now.getHours();
             const m = now.getMinutes();
-            const isAdmin = currentUser && (currentUser.role === 'super_admin');
+            const isGlobalAdmin = currentUser && ['super_admin', 'general_admin'].includes(currentUser.role);
             const isTimeLocked = (h > 21 || (h === 21 && m >= 1));
-            const isLocked = !isAdmin && isTimeLocked;
-
-            // [REMOVED] Individual "Add" buttons from modal as requested ("僅限查看")
+            const isLocked = !isGlobalAdmin && isTimeLocked;
 
             const renderTableBody = (type) => {
                 const list = data[type] || [];
@@ -5965,12 +6168,13 @@
             // [NEW] 3. Render Actions (Restricted to Interns and Management)
             if (!dropdownContainer) return;
             
-            const isMgmt = currentUser && (currentUser.squadron === '管理階層' || currentUser.role === 'management_cadre');
-            const isIntern = currentUser && currentUser.role && currentUser.role.startsWith('intern_');
-            const isSuper = currentUser && (currentUser.role === 'super_admin' || currentUser.role === 'general_admin');
+            const isDashboardAuthorized = (currentUser.role === 'super_admin' || currentUser.role === 'general_admin') || 
+                (currentUser.role === 'management_cadre' || (currentUser.squadron && currentUser.squadron.includes('管理階層'))) || 
+                ['intern_battalion_leader', 'intern_deputy_battalion_leader', 'intern_battalion_po', 'intern_battalion_hq', 
+                 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role);
 
             let html = '';
-            if (isMgmt || isIntern || isSuper) {
+            if (isDashboardAuthorized) {
                 html += `
                     <button class="btn btn-outline-secondary btn-sm w-100" onclick="openNightActionViewModal()">
                         <i class="bi bi-moon-stars-fill text-warning me-1"></i>查看夜間行動
@@ -5978,6 +6182,174 @@
                 `;
             }
             dropdownContainer.innerHTML = html;
+        };
+
+        let liveDashboardSelectedUnit = null;
+
+        window.openLiveDashboard = () => {
+            liveDashboardSelectedUnit = currentSquadron;
+
+            // If Management Cadre OR Intern Battalion HQ, default to the Battalion view (e.g. "一大隊")
+            const isHighLevel = currentUser && (
+                currentUser.role === 'management_cadre' || 
+                (currentUser.squadron && currentUser.squadron.includes('管理階層')) ||
+                (currentUser.role && currentUser.role.startsWith('intern_battalion_'))
+            );
+
+            if (isHighLevel) {
+                liveDashboardSelectedUnit = (currentSquadron && currentSquadron.includes('一大隊')) ? '一大隊' : '二大隊';
+            }
+
+            const titleEl = document.getElementById('liveDashboardTitle');
+            if (titleEl) titleEl.innerText = currentSquadron;
+            
+            const modalEl = document.getElementById('liveDashboardModal');
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+            
+            // Re-render after a short delay to ensure 'show' class is applied or just force it
+            setTimeout(() => renderLiveDashboard(), 300);
+        };
+
+        window.setLiveDashboardUnit = (unit) => {
+            liveDashboardSelectedUnit = unit;
+            renderLiveDashboard();
+        };
+
+        window.renderLiveDashboard = () => {
+            const modalEl = document.getElementById('liveDashboardModal');
+            // If the modal isn't open, we don't need to render
+            if (!modalEl || (!modalEl.classList.contains('show') && modalEl.style.display === 'none')) return;
+
+            const selector = document.getElementById('liveDashboardUnitSelector');
+            const container = document.getElementById('liveDashboardContent');
+            const statsContainer = document.getElementById('liveDashboardStats');
+            const timeEl = document.getElementById('liveDashboardUpdateTime');
+            
+            if (!container || !selector) return;
+
+            // 1. Render Unit Selector (Dynamic based on permission scope)
+            let units = [];
+            const isGlobalAdmin = currentUser && ['super_admin', 'general_admin'].includes(currentUser.role);
+            const isHighLevel = currentUser && (
+                currentUser.role === 'management_cadre' || 
+                (currentUser.squadron && currentUser.squadron.includes('管理階層')) ||
+                (currentUser.role && currentUser.role.startsWith('intern_battalion_'))
+            );
+
+            if (isGlobalAdmin) {
+                // System Admins see EVERYTHING
+                units = ["一大隊", ...battalionStructure["一大隊"], "二大隊", ...battalionStructure["二大隊"], "一大隊管理階層", "二大隊管理階層"];
+            } else if (isHighLevel) {
+                // Management Cadre & Intern Battalion HQ see the whole battalion, EXCLUDING management itself
+                const batt = (currentUser.squadron && (currentUser.squadron.includes('一大隊') || currentUser.class && currentUser.class.includes('一大'))) ? '一大隊' : '二大隊';
+                const baseUnits = battalionStructure[batt];
+                // Filter out management units from the battalion list
+                units = [batt, ...baseUnits.filter(u => !u.includes('管理階層'))];
+            } else {
+                // Regular squadron users see ONLY their own squadron
+                units = [currentUser.squadron];
+            }
+            units = Array.from(new Set(units.filter(Boolean)));
+
+            selector.innerHTML = units.map(u => `
+                <div class="unit-select-btn ${liveDashboardSelectedUnit === u ? 'active' : ''}" onclick="setLiveDashboardUnit('${u}')">
+                    ${u}
+                </div>
+            `).join('');
+
+            // 2. Filter students for selected unit
+            let squadronStudents = [];
+            const targetUnit = liveDashboardSelectedUnit || currentSquadron;
+            
+            if (targetUnit === "一大隊" || targetUnit === "二大隊") {
+                const targetSquadrons = battalionStructure[targetUnit];
+                squadronStudents = studentsData.filter(s => targetSquadrons.includes(s.squadron));
+            } else if (targetUnit.includes('管理階層')) {
+                squadronStudents = studentsData.filter(s => s.squadron === targetUnit || (s.role === 'management_cadre' && getBattalionFromSquadron(s.squadron) === (targetUnit.includes('一大隊') ? '一大隊' : '二大隊')));
+            } else {
+                squadronStudents = studentsData.filter(s => s.squadron === targetUnit);
+            }
+
+            // Sorting
+            squadronStudents.sort((a, b) => 
+                (a.class || "").localeCompare(b.class || "") || 
+                (a.group || "").localeCompare(b.group || "") || 
+                a.name.localeCompare(b.name, 'zh-Hant')
+            );
+
+            // 3. Render Full Session Summary View
+            let summaryHtml = `<div class="d-flex flex-column gap-4">`;
+
+            sessions.forEach(sess => {
+                const sk = getStatusKey(sess);
+                const grp = {};
+                let excCount = 0;
+
+                squadronStudents.forEach(s => {
+                    let st = (s.status && s.status[sk]) ? stripStatusHtml(s.status[sk]) : null;
+                    if (!st || st === "實到") return;
+                    excCount++;
+                    if (!grp[st]) grp[st] = [];
+                    grp[st].push(s.name);
+                });
+
+                summaryHtml += `
+                    <div class="p-3 rounded shadow-sm bg-white border">
+                        <h6 class="fw-bold border-bottom pb-2 mb-3 text-primary">
+                            <i class="bi bi-clock-history me-2"></i>${sess}
+                        </h6>
+                        <div class="list-group list-group-flush">
+                `;
+
+                if (excCount === 0) {
+                    summaryHtml += `<div class="text-muted small py-2 ps-2">此時段全員實到。</div>`;
+                } else {
+                    Object.entries(grp).sort((a, b) => a[0].localeCompare(b[0], 'zh-Hant')).forEach(([status, names]) => {
+                        summaryHtml += `
+                            <div class="list-group-item border-0 px-0 py-2 d-flex align-items-start gap-2">
+                                <span class="badge bg-primary rounded-pill px-2 py-1 small" style="min-width: 80px;">
+                                    ${status}：${names.length}
+                                </span>
+                                <div class="flex-grow-1 small text-dark">
+                                    (${names.join('、')})
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+                summaryHtml += `</div></div>`;
+            });
+
+            summaryHtml += `</div>`;
+            container.innerHTML = summaryHtml;
+
+            // 4. Render Stats Bar (Based on CURRENT session for high-level numbers)
+            const currentSk = getStatusKey(currentSession);
+            let curExc = 0;
+            squadronStudents.forEach(s => {
+                let st = (s.status && s.status[currentSk]) ? stripStatusHtml(s.status[currentSk]) : null;
+                if (st && st !== "實到") curExc++;
+            });
+            const curPre = squadronStudents.length - curExc;
+
+            statsContainer.innerHTML = `
+                <div class="card bg-white shadow-sm border-0 px-4 py-3 d-flex align-items-center gap-4 flex-row" style="border-radius: 15px;">
+                    <div class="d-flex align-items-center">
+                        <span class="text-muted small me-2">單位總人數</span>
+                        <span class="h4 mb-0 fw-bold">${squadronStudents.length}</span>
+                    </div>
+                    <div class="d-flex align-items-center border-start ps-4">
+                        <span class="text-muted small me-2">實到</span>
+                        <span class="h4 mb-0 fw-bold text-success">${curPre}</span>
+                    </div>
+                    <div class="d-flex align-items-center border-start ps-4">
+                        <span class="text-muted small me-2">差勤</span>
+                        <span class="h4 mb-0 fw-bold text-danger">${curExc}</span>
+                    </div>
+                </div>
+            `;
+            if (timeEl) timeEl.innerText = `最後更新: ${new Date().toLocaleTimeString()}`;
         };
 
         window.showStatusDetail = (status) => {
@@ -6434,7 +6806,7 @@
         </div>
     </div>
 
-</body>
+
 
 <!-- Quick Status Modal -->
 <div class="modal fade" id="quickStatusModal" tabindex="-1">
@@ -6445,51 +6817,40 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <!-- Target Selection -->
                 <div id="qsTargetClassContainer" class="mb-3 d-none">
                     <label id="qsTargetClassLabel" class="form-label fw-bold">選擇班級</label>
-                    <select id="qsTargetClass" class="form-select"
-                        onchange="updateQuickStatusStudentList('class', this.value)"></select>
+                    <select id="qsTargetClass" class="form-select" onchange="updateQuickStatusStudentList('class', this.value)"></select>
                 </div>
                 <div id="qsTargetStudentContainer" class="mb-3 d-none">
                     <label class="form-label fw-bold">選擇學生 <span class="text-primary small">(可點擊多選)</span></label>
                     <div class="d-flex mb-2">
-                        <button class="btn btn-sm btn-outline-secondary me-2"
-                            onclick="selectAllQSStudents()">全選</button>
+                        <button class="btn btn-sm btn-outline-secondary me-2" onclick="selectAllQSStudents()">全選</button>
                         <button class="btn btn-sm btn-outline-secondary" onclick="clearAllQSStudents()">清除選擇</button>
                     </div>
-                    <div id="qsTargetStudentGrid" class="border rounded p-2 bg-light d-flex flex-wrap gap-2"
-                        style="max-height: 250px; overflow-y: auto;">
+                    <div id="qsTargetStudentGrid" class="border rounded p-2 bg-light d-flex flex-wrap gap-2" style="max-height: 250px; overflow-y: auto;">
                         <div class="text-muted w-100 text-center">請先選擇班級</div>
                     </div>
                 </div>
-
-                <!-- Date Selection -->
                 <div class="mb-3">
                     <label class="form-label fw-bold">選擇日期 (可多選)</label>
                     <div id="qsDateContainer" class="border rounded p-2 bg-light"></div>
                 </div>
-
-                <!-- Session Selection -->
                 <div class="mb-3">
                     <label class="form-label fw-bold">選擇時段 (可多選)</label>
                     <div id="qsSessionContainer" class="border rounded p-2 bg-light"></div>
                 </div>
-
-                <!-- Status Selection -->
                 <div class="mb-3">
                     <label class="form-label fw-bold">設定差勤狀態 <span class="text-danger small">(點擊選擇)</span></label>
                     <div class="input-group mb-2">
                         <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
-                        <input type="text" id="qsStatusSearchInput" class="form-control border-start-0" 
-                            placeholder="搜尋勤務..." onkeyup="filterQuickStatusButtons()">
+                        <input type="text" id="qsStatusSearchInput" class="form-control border-start-0" placeholder="搜尋勤務..." onkeyup="filterQuickStatusButtons()">
                     </div>
                     <div id="qsStatusGrid" class="border rounded p-2 bg-light d-flex flex-wrap gap-2"></div>
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-primary" onclick="submitQuickStatus()">確認送出</button>
+                <button id="quickStatusSubmitBtn" type="button" class="btn btn-primary" onclick="submitQuickStatus()">確認送出</button>
             </div>
         </div>
     </div>
@@ -6504,7 +6865,6 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body bg-light">
-                <!-- Top Row: Personnel Selection -->
                 <div class="mb-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <label class="form-label fw-bold mb-0">1. 選擇排班人員 <span class="text-primary small">(可多選)</span></label>
@@ -6513,20 +6873,12 @@
                             <button class="btn btn-sm btn-outline-secondary" onclick="clearAllMgmtStudents()">清除</button>
                         </div>
                     </div>
-                    <div id="mgmtTargetStudentGrid" class="border rounded p-2 bg-white d-flex flex-wrap gap-2" style="max-height: 150px; overflow-y: auto;">
-                        <!-- Checkboxes for personnel injected here -->
-                    </div>
+                    <div id="mgmtTargetStudentGrid" class="border rounded p-2 bg-white d-flex flex-wrap gap-2" style="max-height: 150px; overflow-y: auto;"></div>
                 </div>
-
-                <!-- Second Row: Duty Status Selection -->
                 <div class="mb-3">
                     <label class="form-label fw-bold">2. 設定單一差勤狀態 <span class="text-danger small">(單選)</span></label>
-                    <div id="mgmtStatusGrid" class="border rounded p-2 bg-white d-flex flex-wrap gap-2">
-                        <!-- Radio buttons for statuses injected here -->
-                    </div>
+                    <div id="mgmtStatusGrid" class="border rounded p-2 bg-white d-flex flex-wrap gap-2"></div>
                 </div>
-
-                <!-- Third Row: Monthly Calendar & Search -->
                 <div class="mb-2">
                     <div class="d-flex align-items-center mb-2 gap-3 flex-wrap">
                         <label class="form-label fw-bold mb-0 text-nowrap">3. 檢視與刪除排班</label>
@@ -6539,19 +6891,41 @@
                             <span id="mgmtCalendarMonthLabel" class="fw-bold fs-5" style="min-width: 90px; text-align: center;"></span>
                             <button class="btn btn-sm btn-outline-primary" onclick="changeMgmtMonth(1)">下個月 <i class="bi bi-chevron-right"></i></button>
                         </div>
-                        <button class="btn btn-danger fw-bold shadow-sm ms-2" onclick="deleteSelectedMgmtSchedules()">
-                            批量 <i class="bi bi-trash-fill"></i>
-                        </button>
+                        <button id="mgmtScheduleBatchDeleteBtn" class="btn btn-danger fw-bold shadow-sm ms-2" onclick="deleteSelectedMgmtSchedules()">批量 <i class="bi bi-trash-fill"></i></button>
                     </div>
                     <div id="mgmtSearchTagsContainer" class="d-flex flex-wrap gap-2 mb-2"></div>
-                    <div id="mgmtCalendarContainer" class="border rounded bg-white shadow-sm" style="min-height: 400px; max-height: 500px; overflow-y: auto;">
-                        <!-- Calendar / List injected here -->
-                    </div>
+                    <div id="mgmtCalendarContainer" class="border rounded bg-white shadow-sm" style="min-height: 400px; max-height: 500px; overflow-y: auto;"></div>
                 </div>
             </div>
             <div class="modal-footer bg-white border-top">
                 <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-warning fw-bold text-dark px-4 shadow-sm" onclick="submitMgmtSchedule()">確定發送</button>
+                <button id="mgmtScheduleSubmitBtn" type="button" class="btn btn-warning fw-bold text-dark px-4 shadow-sm" onclick="submitMgmtSchedule()">確定發送</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 即時差勤看板 Modal -->
+<div class="modal fade" id="liveDashboardModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content border-0">
+            <div class="modal-header bg-dark text-white shadow-sm py-2">
+                <h5 class="modal-title fw-bold"><i class="bi bi-activity me-2 text-info"></i><span id="liveDashboardTitle"></span> - 即時差勤看板</h5>
+                <div class="ms-auto d-flex align-items-center">
+                    <span class="badge bg-success me-3" id="liveDashboardUpdateTime">最後更新: --:--:--</span>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+            </div>
+            <div class="modal-body bg-light p-0" style="background-image: radial-gradient(#cbd5e1 1px, transparent 1px); background-size: 30px 30px;">
+                <div class="container-fluid py-4">
+                    <div id="liveDashboardUnitSelector" class="mb-4 d-flex flex-wrap justify-content-center">
+                        <!-- Unit buttons injected here -->
+                    </div>
+                    <div id="liveDashboardStats" class="mb-4 d-flex gap-3 flex-wrap justify-content-center"></div>
+                    <div id="liveDashboardContent" class="bg-white rounded shadow-sm overflow-x-auto p-3 mx-2">
+                        <!-- Matrix View Table injected here -->
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -6573,19 +6947,16 @@
                         <option value="squadron">目前中隊</option>
                     </select>
                 </div>
-                <div id="exportDormPreview" class="border rounded p-2 bg-light"
-                    style="max-height:300px;overflow-y:auto;font-family:monospace;font-size:0.85em;white-space:pre;">
-                    <!-- Preview -->
-                </div>
+                <div id="exportDormPreview" class="border rounded p-2 bg-light" style="max-height:300px;overflow-y:auto;font-family:monospace;font-size:0.85em;white-space:pre;"></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-success" onclick="doExportDorm()"><i
-                        class="bi bi-download me-1"></i>下載 Excel</button>
+                <button type="button" class="btn btn-success" onclick="doExportDorm()"><i class="bi bi-download me-1"></i>下載 Excel</button>
             </div>
         </div>
     </div>
 </div>
+
 <!-- 更改寢室別與床位 Modal -->
 <div class="modal fade" id="changeDormModal" tabindex="-1">
     <div class="modal-dialog modal-sm">
@@ -6601,8 +6972,7 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label small">床位</label>
-                    <input type="text" id="changeBedInput" class="form-control form-control-sm"
-                        placeholder="如: A/B/C/D">
+                    <input type="text" id="changeBedInput" class="form-control form-control-sm" placeholder="如: A/B/C/D">
                 </div>
                 <div id="changeDormError" class="text-danger small"></div>
             </div>
@@ -6614,4 +6984,12 @@
     </div>
 </div>
 
+<style>
+.unit-select-btn { border: 2px solid #000; color: #000; background: #fff; padding: 8px 20px; font-weight: 900; transition: all 0.2s ease; border-radius: 0; margin: 4px; text-transform: uppercase; letter-spacing: 1px; }
+.unit-select-btn:hover, .unit-select-btn.active { background: #000; color: #fff; cursor: pointer; }
+#liveDashboardTable th { background-color: #f8f9fa; position: sticky; top: 0; z-index: 10; }
+.status-missing { color: #dc3545 !important; font-weight: 900 !important; }
+</style>
+
+</body>
 </html>
