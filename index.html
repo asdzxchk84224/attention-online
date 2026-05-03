@@ -2967,7 +2967,7 @@
                 html += `<li><a class="dropdown-item fw-bold" href="#" onclick="switchSquadron('${currentUser.squadron}')">${currentUser.squadron}</a></li>`;
                 
                 // [NEW] Also check if they have an affiliated unit (for non-cadre management)
-                if (currentUser.squadron === '一校長官' || s === '二校長官' && currentUser.class) {
+                if ((currentUser.squadron === '一校長官' || currentUser.squadron === '二校長官') && currentUser.class) {
                     html += `<li><hr class="dropdown-divider"></li>`;
                     html += `<li><a class="dropdown-item text-primary" href="#" onclick="switchSquadron('${currentUser.class}')">${currentUser.class} (所屬單位)</a></li>`;
                 }
@@ -3552,7 +3552,7 @@
                 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'
             ].includes(currentUser.role);
             const isFullAdmin = ['super_admin', 'general_admin'].includes(currentUser.role);
-            const isMgmtUser = (currentUser.role === 'management_cadre' || currentUser.squadron === '一校長官' || s === '二校長官');
+            const isMgmtUser = (currentUser.role === 'management_cadre' || currentUser.squadron === '一校長官' || currentUser.squadron === '二校長官');
             
             if (!isFullAdmin && !isInternLeader && !isMgmtUser) {
                 alert("您沒有權限執行此操作。");
@@ -4221,6 +4221,22 @@
                 sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
                 bootstrap.Modal.getOrCreateInstance(document.getElementById('loginModal')).hide();
                 updateAuthUI();
+
+                // [NEW] Email Collection Prompt
+                if (!student.email) {
+                    let emailPrompt = prompt("為了方便寄送臨時密碼至信箱，請輸入您的常用 Email：");
+                    if (emailPrompt) {
+                        emailPrompt = emailPrompt.trim();
+                        if (emailPrompt) {
+                            try {
+                                await updateDoc(doc(db, "students", student.id), { email: emailPrompt });
+                                currentUser.email = emailPrompt;
+                                student.email = emailPrompt;
+                                sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
+                            } catch(e) { console.error("Email update error", e); }
+                        }
+                    }
+                }
                 
                 // 寢室別+床位：若尚未設定，或超過30天未更新，則詢問
                 {
@@ -4306,6 +4322,19 @@
                 sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
                 bootstrap.Modal.getOrCreateInstance(document.getElementById('adminLoginModal')).hide();
                 updateAuthUI();
+
+                // [NEW] Admin Email Collection Prompt (If missing)
+                if (!match.email) {
+                    let emailPrompt = prompt("為了方便寄送臨時密碼至信箱，請輸入您的常用 Email：");
+                    if (emailPrompt) {
+                        emailPrompt = emailPrompt.trim();
+                        if (emailPrompt) {
+                            currentUser.email = emailPrompt;
+                            sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
+                            // Note: Static admins don't update DB here, but session is updated
+                        }
+                    }
+                }
             } else {
                 document.getElementById('adminLoginError').innerText = "帳號或密碼錯誤";
             }
@@ -5312,7 +5341,7 @@
             }
 
             // 2. Populate Date Checkboxes
-            const isMgmt = (currentUser && (currentUser.role === 'management_cadre' || currentUser.squadron === '一校長官' || s === '二校長官'));
+            const isMgmt = (currentUser && (currentUser.role === 'management_cadre' || currentUser.squadron === '一校長官' || currentUser.squadron === '二校長官'));
             
             if (isMgmt) {
                 // Management: Toggleable Dual Month Calendar View (Always shows current & next month)
@@ -5452,7 +5481,7 @@
 
             let activeSquadron = null;
             if (currentUser) {
-                const isMgmt = currentUser.squadron === '一校長官' || s === '二校長官';
+                const isMgmt = currentUser.squadron === '一校長官' || currentUser.squadron === '二校長官';
                 if (['class_admin', 'group_admin', 'squadron_admin', 'intern_class_leader', 'district_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role)) {
                     activeSquadron = currentUser.squadron || currentSquadron || null;
                 } else if (isMgmt) {
@@ -5622,7 +5651,7 @@
             
             // Role-based scope restriction (matching single status update logic)
             const isSuper = ['super_admin', 'general_admin'].includes(currentUser.role);
-            const isMgmt = (currentUser.squadron === '一校長官' || s === '二校長官' || currentUser.role === 'management_cadre');
+            const isMgmt = (currentUser.squadron === '一校長官' || currentUser.squadron === '二校長官' || currentUser.role === 'management_cadre');
             const isSqLeader = ['intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'squadron_admin'].includes(currentUser.role);
             
             let canEdit = isSuper || isMgmt || isSqLeader;
