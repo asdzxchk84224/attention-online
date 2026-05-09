@@ -255,8 +255,6 @@
 
                     <div class="btn-group me-1 me-md-2" role="group">
                         <button class="btn btn-outline-primary px-2 px-md-3 text-nowrap"
-                            onclick="setGroupBy('squadron')">依中隊</button>
-                        <button class="btn btn-outline-primary px-2 px-md-3 text-nowrap"
                             onclick="setGroupBy('class')">依班級</button>
                         <button class="btn btn-outline-primary px-2 px-md-3 text-nowrap"
                             onclick="setGroupBy('group')">依組別</button>
@@ -975,11 +973,17 @@
         let currentDay = (rawDay && /^\d{4}-\d{2}-\d{2}$/.test(rawDay)) ? rawDay : new Date().toISOString().split('T')[0];
 
         let currentGroupMode = sessionStorage.getItem('currentGroupMode') || "class";
+        if (currentGroupMode === 'squadron') currentGroupMode = 'class';
         let currentSquadron = sessionStorage.getItem('currentSquadron') || (currentUser && currentUser.squadron ? currentUser.squadron : "一大一中");
 
         // Status Configuration
         // Default global fallback
-        const DEFAULT_STATUSES = ["實到", "病假", "事假", "公假"];
+        const DEFAULT_STATUSES = [
+            "實到", "病假", "事假", "公假", "喪假", "外診", "看護", "寢休", "補休", "伙委", "工委", "消委",
+            "環委", "收尾", "洗委", "髮委", "勤學樓外掃", "文書", "美工", "大美", "升降旗", "檢寢", "陪檢", "廁所",
+            "站哨", "軍樂", "軍儀", "校旗", "戰鼓", "熱音", "熱舞", "籃球", "巡水電", "校隊", "正課", "盥洗",
+            "電台", "外派", "區隊長公差", "壘球", "選手", "榮譽假", "提早假", "正常假", "隔離", "居家隔離", "業務", "排球", "降旗"
+        ];
         let currentStatuses = [...DEFAULT_STATUSES];
 
         // Cache for status configs: { "global": [...], "一大一中": [...], ... }
@@ -1564,13 +1568,13 @@
                     const userBattalion = getBattalionFromSquadron(currentUser.squadron);
                     const targetBattalion = getBattalionFromSquadron(sq);
                     if (userBattalion !== targetBattalion) {
-                        window.showToast(`權限不足：您只能查看「${userBattalion}」的名單`);
+                        window.showToast(`權限不足：您只能查看「${userBattalion}」的名單`, 'warning');
                         return;
                     }
                 } else {
                     // Students and Squadron-level cadres
                     if (sq !== currentUser.squadron) {
-                        window.showToast(`權限不足：您僅能查看「${currentUser.squadron}」的名單`);
+                        window.showToast(`權限不足：您僅能查看「${currentUser.squadron}」的名單`, 'warning');
                         return;
                     }
                 }
@@ -2126,7 +2130,7 @@
                 'intern_battalion_leader', 'intern_deputy_battalion_leader', 'intern_battalion_po', 'intern_battalion_hq',
                 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader', 'district_admin', 'class_admin'
             ];
-            if (!currentUser || (currentUser.role !== 'super_admin' && currentUser.role !== 'general_admin' && !internRoles.includes(currentUser.role))) return window.showToast("權限不足");
+            if (!currentUser || (currentUser.role !== 'super_admin' && currentUser.role !== 'general_admin' && !internRoles.includes(currentUser.role))) return window.showToast("權限不足", 'warning');
             const classInput = document.getElementById('inputClass').value.trim();
             const groupInput = document.getElementById('inputGroup').value.trim();
             const nameInput = document.getElementById('inputName').value.trim();
@@ -2138,7 +2142,7 @@
             const restrictedRoles = ['class_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader', 'district_admin'];
             if (restrictedRoles.includes(currentUser.role)) {
                 if (targetSquadron !== currentUser.squadron || (currentUser.class && classInput !== currentUser.class)) {
-                    return window.showToast("權限不足：您只能在自己所屬的「中隊」與「建置班級」新增人員");
+                    return window.showToast("權限不足：您只能在自己所屬的「中隊」與「建置班級」新增人員", 'warning');
                 }
             }
 
@@ -2158,7 +2162,7 @@
             } catch (e) { console.error(e); window.showToast("新增失敗"); }
         };
         window.batchAddStudents = async () => {
-            if (!currentUser || (currentUser.role !== 'super_admin' && currentUser.role !== 'general_admin')) return window.showToast("權限不足");
+            if (!currentUser || (currentUser.role !== 'super_admin' && currentUser.role !== 'general_admin')) return window.showToast("權限不足", 'warning');
             const input = document.getElementById('batchInput').value.trim();
             if (!input) return;
             const lines = input.split('\n');
@@ -2220,7 +2224,7 @@
             if (!isGlobalAdmin && currentUser.squadron && isManagementUnit(currentUser.squadron)) {
                 if (!isMgmtTarget) {
                     // Allowed to view other squadrons, but not edit
-                    return window.showToast("檢視模式：您僅能檢視所屬單位，無法變更其學生狀態");
+                    return window.showToast("檢視模式：您僅能檢視所屬單位，無法變更其學生狀態", 'info');
                 }
                 // If it IS a mgmt target, we allow it later in the function
             }
@@ -2278,7 +2282,7 @@
             const statusKey = getStatusKey(currentSession);
 
             if (currentUser.role === 'intern_battalion_hq') {
-                return window.showToast("權限不足：實習大隊部僅具備查看權限，無法變更狀態");
+                return window.showToast("權限不足：實習大隊部僅具備查看權限，無法變更狀態", 'warning');
             }
 
             if (canDirectlyUpdate) {
@@ -2318,17 +2322,17 @@
             }
         };
         window.removeStudent = async (id) => {
-            if (!currentUser || !['super_admin', 'general_admin', 'class_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader'].includes(currentUser.role)) return window.showToast("權限不足");
+            if (!currentUser || !['super_admin', 'general_admin', 'class_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader'].includes(currentUser.role)) return window.showToast("權限不足", 'warning');
 
             if (['intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role)) {
                 const student = studentsData.find(s => s.id === id);
                 if (!student || student.squadron !== currentUser.squadron) {
-                    return window.showToast("權限不足：您只能刪除自己中隊的學生");
+                    return window.showToast("權限不足：您只能刪除自己中隊的學生", 'warning');
                 }
             } else if (['class_admin', 'intern_class_leader'].includes(currentUser.role)) {
                 const student = studentsData.find(s => s.id === id);
                 if (!student || student.squadron !== currentUser.squadron || student.class !== currentUser.class) {
-                    return window.showToast("權限不足：您只能刪除自己班級的學生");
+                    return window.showToast("權限不足：您只能刪除自己班級的學生", 'warning');
                 }
             }
 
@@ -2354,7 +2358,7 @@
 
         window.addNewStatusType = async () => {
             const internRoles = ['class_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader'];
-            if (!currentUser || !['super_admin', 'general_admin', ...internRoles, 'group_admin', 'squadron_admin', 'duty_class'].includes(currentUser.role)) return window.showToast("權限不足");
+            if (!currentUser || !['super_admin', 'general_admin', ...internRoles, 'group_admin', 'squadron_admin', 'duty_class'].includes(currentUser.role)) return window.showToast("權限不足", 'warning');
             
             const val = document.getElementById('newStatusInput').value.trim();
             if (!val) return;
@@ -2401,7 +2405,7 @@
 
         window.removeStatusType = async (val) => {
             const internRoles = ['class_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader'];
-            if (!currentUser || !['super_admin', 'general_admin', ...internRoles, 'group_admin', 'squadron_admin', 'duty_class'].includes(currentUser.role)) return window.showToast("權限不足");
+            if (!currentUser || !['super_admin', 'general_admin', ...internRoles, 'group_admin', 'squadron_admin', 'duty_class'].includes(currentUser.role)) return window.showToast("權限不足", 'warning');
 
             const scope = document.getElementById('settingTargetScope').value || 'global';
 
@@ -2438,7 +2442,7 @@
 
         window.batchImportStatuses = async () => {
             const internRoles = ['class_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader'];
-            if (!currentUser || !['super_admin', 'general_admin', ...internRoles, 'group_admin', 'squadron_admin', 'duty_class'].includes(currentUser.role)) return window.showToast("權限不足");
+            if (!currentUser || !['super_admin', 'general_admin', ...internRoles, 'group_admin', 'squadron_admin', 'duty_class'].includes(currentUser.role)) return window.showToast("權限不足", 'warning');
 
             const input = document.getElementById('batchStatusInput').value.trim();
             if (!input) return window.showToast("請輸入內容");
@@ -2485,7 +2489,7 @@
             const isSqLeader = ['intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'squadron_admin'].includes(currentUser.role);
             const isBattalionHQ = ['intern_battalion_leader', 'intern_deputy_battalion_leader', 'intern_battalion_po', 'intern_battalion_hq'].includes(currentUser.role);
             
-            let canEdit = isSuper || isMgmt || isSqLeader || isBattalionHQ;
+            let canEdit = isSuper || isMgmt || isSqLeader || isBattalionHQ || (currentUser.id === id);
             
             if (!canEdit) {
                 if (currentUser.role === 'intern_class_leader' || currentUser.role === 'class_admin') {
@@ -2505,7 +2509,7 @@
                 }
             }
             
-            if (!canEdit) return window.showToast("權限不足：您僅能管理自己班級/區隊的人員。");
+            if (!canEdit) return window.showToast("權限不足：您僅能管理自己班級/區隊的人員。", 'warning');
 
             document.getElementById('updateStatusStudentId').value = id;
             document.getElementById('updateStatusStudentName').innerText = name;
@@ -2625,7 +2629,7 @@
                 }
             }
 
-            if (!canReset) return window.showToast("權限不足");
+            if (!canReset) return window.showToast("權限不足", 'warning');
 
             const label = scope === 'current' ? `本時段 (${currentSession})` : `今天 (${currentDay})`;
             if (!true) return;
@@ -2753,7 +2757,7 @@
                 
                 // [AUTO-FIX] Seed Management Levels with requested custom statuses
                 const mgmtUnits = ["一校長官", "二校長官"];
-                const requiredMgmtStatuses = [...DEFAULT_STATUSES, "值星", "任務", "休假", "留守"];
+                const requiredMgmtStatuses = ["實到", "病假", "事假", "公假", "值星", "任務", "休假", "留守"];
                 mgmtUnits.forEach(unit => {
                     // If unit config doesn't exist, OR it's missing '實到' (meaning it suffered from the overwrite bug)
                     if (!data[unit] || !data[unit].includes("實到")) {
@@ -2799,7 +2803,7 @@
         // Update UI based on login status
         window.resetAllToPresent = async () => {
             const allowedRoles = ['super_admin', 'general_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'];
-            if (!currentUser || !allowedRoles.includes(currentUser.role)) return window.showToast("權限不足 (實習大隊部僅能查看，無法執行重置)");
+            if (!currentUser || !allowedRoles.includes(currentUser.role)) return window.showToast("權限不足 (實習大隊部僅能查看，無法執行重置)", 'warning');
 
             if (!true) return;
 
@@ -4403,8 +4407,14 @@
             let currentPass = (student ? student.password : currentUser.password);
             
             if (isHardcodedAdmin) {
-                if (currentUser.id === 'admin_admin_id') currentPass = '!QAZ2wsx3edc4rfv';
-                if (currentUser.id === '2-1_admin_id') currentPass = 'QAZwsx';
+                const adminUsername = currentUser.id.replace('_admin_id', '');
+                const savedPass = localStorage.getItem('admin_pass_' + adminUsername);
+                if (savedPass) {
+                    currentPass = savedPass;
+                } else {
+                    if (currentUser.id === 'admin_admin_id') currentPass = '!QAZ2wsx3edc4rfv';
+                    if (currentUser.id === '2-1_admin_id') currentPass = 'QAZwsx';
+                }
             }
 
             if (currentPass !== oldPass) {
@@ -4552,8 +4562,14 @@
                 let currentPass = student ? student.password : currentUser.password;
 
                 if (isHardcodedAdmin) {
-                    if (currentUser.id === 'admin_admin_id') currentPass = '!QAZ2wsx3edc4rfv';
-                    if (currentUser.id === '2-1_admin_id') currentPass = 'QAZwsx';
+                    const u = currentUser.id.replace('_admin_id', '');
+                    const savedPass = localStorage.getItem('admin_pass_' + u);
+                    if (savedPass) {
+                        currentPass = savedPass;
+                    } else {
+                        if (currentUser.id === 'admin_admin_id') currentPass = '!QAZ2wsx3edc4rfv';
+                        if (currentUser.id === '2-1_admin_id') currentPass = 'QAZwsx';
+                    }
                 }
 
                 console.log("Password Debug - Current:", currentPass, "Entered:", oldPass);
@@ -4586,6 +4602,12 @@
                 const isHardcodedAdmin = currentUser.id.includes('_admin_id');
                 if (!isHardcodedAdmin) {
                     await updateDoc(doc(db, "students", currentUser.id), updateData);
+                } else {
+                    // For hardcoded admins: persist new password to localStorage
+                    const u = currentUser.id.replace('_admin_id', '');
+                    if (updateData.password) {
+                        localStorage.setItem('admin_pass_' + u, updateData.password);
+                    }
                 }
                 window.showToast("更新成功！");
                 
@@ -5671,7 +5693,7 @@
                 }
             }
             
-            if (!canEdit) return window.showToast("權限不足：您僅能為自己班級/區隊的人員報夜間行動。");
+            if (!canEdit) return window.showToast("權限不足：您僅能為自己班級/區隊的人員報夜間行動。", 'warning');
             
             openNightActionModal(studentId);
         };
@@ -6541,7 +6563,7 @@
 
             if (!currentUser) return window.showToast('請先登入');
             const canExport = ['super_admin', 'general_admin', 'class_admin'].includes(currentUser.role);
-            if (!canExport) return window.showToast('權限不足');
+            if (!canExport) return window.showToast('權限不足', 'warning');
             const scopeSel = document.getElementById('exportDormScope');
             if (currentUser.role === 'class_admin') scopeSel.value = 'squadron';
             const updatePreview = () => {
