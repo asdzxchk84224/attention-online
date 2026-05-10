@@ -1010,15 +1010,42 @@
             for (let i = 0; i < 7; i++) {
                 const d = new Date(now);
                 d.setDate(now.getDate() + i);
-                rolling.push(d.toISOString().split('T')[0]);
+                const yyyy = d.getFullYear();
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                rolling.push(`${yyyy}-${mm}-${dd}`);
             }
             return rolling;
         }
         let days = getRollingDays();
 
+        function checkDateRefresh() {
+            const now = new Date();
+            const yyyy = now.getFullYear();
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            const todayStr = `${yyyy}-${mm}-${dd}`;
+            if (currentDay < todayStr) {
+                console.log("Date changed! Refreshing rolling days...");
+                days = getRollingDays();
+                // If the user was on an "old" day that just disappeared, move them to today
+                if (!days.includes(currentDay)) {
+                    currentDay = todayStr;
+                    sessionStorage.setItem('currentDay', currentDay);
+                }
+                updateSessionsList(currentDay);
+                initWeekTabs();
+                initSessionTabs();
+                window.safeRenderAll();
+            }
+        }
+        setInterval(checkDateRefresh, 60000); // Check every minute
+
         // Ensure currentDay is in YYYY-MM-DD format, else reset to today
         let rawDay = sessionStorage.getItem('currentDay');
-        let currentDay = (rawDay && /^\d{4}-\d{2}-\d{2}$/.test(rawDay)) ? rawDay : new Date().toISOString().split('T')[0];
+        const _now = new Date();
+        const _today = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`;
+        let currentDay = (rawDay && /^\d{4}-\d{2}-\d{2}$/.test(rawDay)) ? rawDay : _today;
 
         let currentSession = sessionStorage.getItem('currentSession') || sessions[0];
         
@@ -2025,8 +2052,10 @@
                                         canEdit = true;
                                         canDelete = false; // Only Super Admin can delete management
                                     }
+                                } else if (currentUser.role === 'student') {
+                                    if (currentUser.id === student.id) canEdit = true;
                                 }
-                            } else { // student case or not logged in
+                            } else { // not logged in
                                 if (currentUser && currentUser.id === student.id) canEdit = true;
                             }
 
@@ -2648,7 +2677,7 @@
                 return clean.includes(term);
             }).map(s => {
                 const clean = stripStatusHtml(s);
-                return `<button class="btn btn-outline-dark fw-bold px-3 py-2" 
+                return `<button class="btn btn-outline-primary fw-bold px-3 py-2" 
                     onclick="selectNewStatus('${studentId}', '${s}')">${clean}</button>`;
             }).join('');
             
@@ -5366,7 +5395,7 @@
             
             const submitBtn = document.getElementById('quickStatusSubmitBtn');
             if (submitBtn) {
-                const canModify = isGlobalAdmin || isMgmtUser || (currentUser.role && currentUser.role.startsWith('intern_')) || ['class_admin', 'district_admin', 'group_admin'].includes(currentUser.role);
+                const canModify = isGlobalAdmin || isMgmtUser || (currentUser.role && (currentUser.role === 'student' || currentUser.role.startsWith('intern_'))) || ['class_admin', 'district_admin', 'group_admin'].includes(currentUser.role);
                 submitBtn.classList.toggle('d-none', !canModify);
             }
 
@@ -5570,7 +5599,8 @@
             }
 
             // 3. Populate Session Checkboxes
-            sessionContainer.innerHTML = sessions.map(s => {
+            const allPossibleSessions = [...BASE_SESSIONS, "軍訓課第一節", "軍訓課第二節"];
+            sessionContainer.innerHTML = allPossibleSessions.map(s => {
                 const isChecked = (s === currentSession) ? 'checked' : '';
                 // [NEW] Group Admin restriction
                 let disabledAttr = '';
@@ -5613,7 +5643,7 @@
                 return clean.includes(term);
             }).map(s => {
                 const clean = stripStatusHtml(s);
-                const active = (qsSelectedStatus === s) ? 'btn-danger' : 'btn-outline-danger';
+                const active = (qsSelectedStatus === s) ? 'btn-primary' : 'btn-outline-primary';
                 return `<button id="qsStatusBtn_${s}" class="btn ${active} btn-sm m-1" onclick="toggleQSStatus('${s}')">${clean}</button>`;
             }).join('');
             
@@ -5677,6 +5707,7 @@
         };
 
         window.submitQuickStatus = async () => {
+            const isStudentRole = currentUser && currentUser.role === 'student';
             // 1. Gather Data
             const selectedDays = Array.from(document.querySelectorAll('input[name="qsDay"]:checked')).map(cb => cb.value);
             let selectedSessions = Array.from(document.querySelectorAll('input[name="qsSession"]:checked')).map(cb => cb.value);
