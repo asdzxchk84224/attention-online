@@ -1683,43 +1683,48 @@
                         ['intern_battalion_leader', 'intern_deputy_battalion_leader', 'intern_battalion_po', 'intern_battalion_hq', 
                          'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role));
 
-                    if (isMgmtSq) {
-                        // Management Cadre Overview: Keep old buttons
-                        actionHtml = `
-                            <button class="btn btn-outline-primary btn-sm text-nowrap" onclick="copyGlobalReport()">
-                                <i class="bi bi-clipboard"></i> 複製總覽
-                            </button>
-                            <button class="btn btn-outline-primary btn-sm text-nowrap" onclick="openQuickStatusModal()">
-                                <i class="bi bi-lightning-fill"></i> 任務差勤
-                            </button>
-                            ${isDashboardAuthorized ? `
-                            <button class="btn btn-outline-info btn-sm text-nowrap" onclick="openLiveDashboard()">
-                                <i class="bi bi-grid-3x3-gap-fill"></i> 即時看板
-                            </button>` : ''}
-                        `;
-                    } else {
-                        // Student Squadrons: Hamburger Menu
-                        const canReset = currentUser && ['super_admin', 'general_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role);
-                        
-                        actionHtml = `
-                            <div class="dropdown">
-                                <button class="btn btn-outline-primary btn-sm px-3" type="button" data-bs-toggle="dropdown">
-                                    <i class="bi bi-list fs-5"></i>
+                    if (currentUser) {
+                        if (isMgmtSq) {
+                            // Management Cadre Overview: Keep old buttons
+                            actionHtml = `
+                                <button class="btn btn-outline-primary btn-sm text-nowrap" onclick="copyGlobalReport()">
+                                    <i class="bi bi-clipboard"></i> 複製總覽
                                 </button>
-                                <ul class="dropdown-menu dropdown-menu-end shadow">
-                                    <li><button class="dropdown-item" onclick="copyGlobalReport()"><i class="bi bi-clipboard me-2"></i>複製此時段</button></li>
-                                    <li><button class="dropdown-item" onclick="copyDayReport()"><i class="bi bi-calendar-range me-2"></i>複製全時段</button></li>
-                                    ${canReset ? `
-                                    <li><hr class="dropdown-divider"></li>
-                                    <li><button class="dropdown-item text-danger" onclick="resetAllToPresent()"><i class="bi bi-calendar-check me-2"></i>重置整天</button></li>
-                                    ` : ''}
-                                </ul>
-                            </div>
-                            ${isDashboardAuthorized ? `
-                            <button class="btn btn-outline-info btn-sm text-nowrap" onclick="openLiveDashboard()">
-                                <i class="bi bi-grid-3x3-gap-fill"></i> 即時看板
-                            </button>` : ''}
-                        `;
+                                <button class="btn btn-outline-primary btn-sm text-nowrap" onclick="openQuickStatusModal()">
+                                    <i class="bi bi-lightning-fill"></i> 任務差勤
+                                </button>
+                                ${isDashboardAuthorized ? `
+                                <button class="btn btn-outline-info btn-sm text-nowrap" onclick="openLiveDashboard()">
+                                    <i class="bi bi-grid-3x3-gap-fill"></i> 即時看板
+                                </button>` : ''}
+                            `;
+                        } else {
+                            // Student Squadrons: Hamburger Menu
+                            const canReset = currentUser && ['super_admin', 'general_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role);
+                            
+                            actionHtml = `
+                                <div class="dropdown">
+                                    <button class="btn btn-outline-primary btn-sm px-3" type="button" data-bs-toggle="dropdown">
+                                        <i class="bi bi-list fs-5"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end shadow">
+                                        <li><button class="dropdown-item" onclick="copyGlobalReport()"><i class="bi bi-clipboard me-2"></i>複製此時段</button></li>
+                                        <li><button class="dropdown-item" onclick="copyDayReport()"><i class="bi bi-calendar-range me-2"></i>複製全時段</button></li>
+                                        ${canReset ? `
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><button class="dropdown-item text-danger" onclick="resetAllToPresent()"><i class="bi bi-calendar-check me-2"></i>重置整天</button></li>
+                                        ` : ''}
+                                    </ul>
+                                </div>
+                                ${isDashboardAuthorized ? `
+                                <button class="btn btn-outline-info btn-sm text-nowrap" onclick="openLiveDashboard()">
+                                    <i class="bi bi-grid-3x3-gap-fill"></i> 即時看板
+                                </button>` : ''}
+                            `;
+                        }
+                    } else {
+                        // Not logged in: Show nothing or just Dashboard if allowed
+                        actionHtml = '';
                     }
                     actionHtml += `<div id="statusOverviewTags" class="w-100 mt-1"></div>`;
                     actionContainer.innerHTML = actionHtml;
@@ -3083,13 +3088,12 @@
                 notificationBtn.classList.add('d-none');
                 adminManageLink.classList.add('d-none');
 
-                // Hide Add btn if not logged in (or show if you want default to be visible? No, default should be hidden or visible? 
-                // Original behavior: it was visible. 
-                // Requirement: "Student Cadre cannot add". 
-                // If not logged in, who are they? Guest. Should Guest add? Probably not.
-                // Let's hide it for consistency.
+                // Hide Add btn and Master Action btn if not logged in
                 const addStudentBtn = document.getElementById('addStudentBtn');
                 if (addStudentBtn) addStudentBtn.classList.add('d-none');
+                
+                const masterActionButton = document.getElementById('masterActionButton');
+                if (masterActionButton) masterActionButton.classList.add('d-none');
             }
             renderSquadronDropdown();
             window.safeRenderAll(); // Re-render to update permissions
@@ -4398,11 +4402,13 @@
                 { u: '2-1', p: 'QAZwsx', name: '值星幹部', role: 'general_admin', customRoleTitle: '值星幹部', squadron: '二大一中' }
             ];
 
-            // Check localStorage for any custom password saved after a password change
+            const savedPass = localStorage.getItem('admin_pass_' + u);
+            const effectivePass = savedPass || (admins.find(a => a.u === u)?.p);
+            
             const match = admins.find(a => {
-                const savedPass = localStorage.getItem('admin_pass_' + a.u);
-                const effectivePass = savedPass || a.p;
-                return a.u === u && effectivePass === p;
+                const sp = localStorage.getItem('admin_pass_' + a.u);
+                const ep = sp || a.p;
+                return a.u === u && ep === p;
             });
 
             if (match) {
@@ -4412,7 +4418,7 @@
                     role: match.role,
                     customRoleTitle: match.customRoleTitle,
                     squadron: match.squadron,
-                    password: match.p // Store password for session verification during updates
+                    password: p // Use the password that was actually used to login successfully
                 };
                 sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
                 bootstrap.Modal.getOrCreateInstance(document.getElementById('adminLoginModal')).hide();
