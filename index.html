@@ -808,19 +808,27 @@
             <div class="modal-content">
                 <div class="modal-header bg-warning">
                     <h5 class="modal-title fw-bold"><i class="bi bi-clipboard-check me-2"></i>審核申請</h5>
-                    <select id="approvalClassFilter" class="form-select form-select-sm ms-3" style="max-width: 150px;"
+                    <select id="approvalClassFilter" class="form-select form-select-sm ms-2" style="max-width: 110px;"
                         onchange="refreshApprovalModal()">
-                        <option value="all">顯示全部</option>
-                        <!-- Options populated via JS -->
+                        <option value="all">所有班級</option>
                     </select>
+                    <select id="approvalDayFilter" class="form-select form-select-sm ms-1" style="max-width: 110px;"
+                        onchange="refreshApprovalModal()">
+                        <option value="all">所有日期</option>
+                    </select>
+                    <select id="approvalSessionFilter" class="form-select form-select-sm ms-1" style="max-width: 110px;"
+                        onchange="refreshApprovalModal()">
+                        <option value="all">所有時段</option>
+                    </select>
+
                     <button id="historyBtn" class="btn btn-outline-dark btn-sm ms-2"
                         onclick="showApprovalHistoryModal()" title="查看審核紀錄">
-                        <i class="bi bi-clock-history"></i> 紀錄
+                        <i class="bi bi-clock-history"></i>
                     </button>
-                    <div class="ms-auto me-2">
-                        <button class="btn btn-success btn-sm me-1"
-                            onclick="batchHandleRequests('approve')">全部批准</button>
-                        <button class="btn btn-danger btn-sm" onclick="batchHandleRequests('reject')">全部駁回</button>
+                    <div class="ms-auto d-flex align-items-center">
+                        <button class="btn btn-success btn-sm me-1 px-2"
+                            onclick="batchHandleRequests('approve')">全批</button>
+                        <button class="btn btn-danger btn-sm px-2" onclick="batchHandleRequests('reject')">全駁</button>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
@@ -840,6 +848,18 @@
             <div class="modal-content">
                 <div class="modal-header bg-secondary text-white">
                     <h5 class="modal-title fw-bold"><i class="bi bi-clock-history me-2"></i>審核紀錄</h5>
+                    <select id="historyClassFilter" class="form-select form-select-sm ms-3" style="max-width: 110px;" onchange="renderApprovalHistory()">
+                        <option value="all">所有班級</option>
+                    </select>
+                    <select id="historyDayFilter" class="form-select form-select-sm ms-1" style="max-width: 110px;" onchange="renderApprovalHistory()">
+                        <option value="all">所有日期</option>
+                    </select>
+                    <select id="historySessionFilter" class="form-select form-select-sm ms-1" style="max-width: 110px;" onchange="renderApprovalHistory()">
+                        <option value="all">所有時段</option>
+                    </select>
+                    <button class="btn btn-outline-light btn-sm ms-2" onclick="backfillHistory()" title="全局同步所有缺失紀錄">
+                        <i class="bi bi-magic"></i> 全局補登
+                    </button>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-0">
@@ -1343,10 +1363,11 @@
             document.getElementById('exportTargetValue').value = value || '';
 
             // Populate Days
-            const daysOfWeek = ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日'];
-            daySelect.innerHTML = daysOfWeek.map(d =>
-                `<option value="${d}" ${d === currentDay ? 'selected' : ''}>${d}</option>`
-            ).join('');
+            const rolling = typeof days !== 'undefined' ? days : getRollingDays();
+            daySelect.innerHTML = rolling.map(d => {
+                const label = getWeekDateLabel(d).replace(/<[^>]*>/g, ' '); 
+                return `<option value="${d}" ${d === currentDay ? 'selected' : ''}>${label}</option>`;
+            }).join('');
 
             // Populate Sessions
             sessionChecks.innerHTML = sessions.map((s, idx) => `
@@ -3794,7 +3815,7 @@
             } else if (role === 'district_admin') {
                 document.getElementById('districtConfig').classList.remove('d-none');
                 const list = document.getElementById('configClassList');
-                list.innerHTML = classOrder.map(c => `
+                list.innerHTML = getDynamicClassOrder().map(c => `
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" value="${c}" id="chk_cls_${c}" ${s.managedClasses && s.managedClasses.includes(c) ? 'checked' : ''}>
                         <label class="form-check-label" for="chk_cls_${c}">${c}</label>
@@ -3907,7 +3928,6 @@
             }
         };
 
-
         window.resetUserPassword = async (uid, name) => {
             const isInternLeader = [
                 'intern_battalion_leader', 'intern_deputy_battalion_leader', 'intern_battalion_po', 'intern_battalion_hq',
@@ -3919,7 +3939,6 @@
             const target = studentsData.find(s => s.id === uid);
             if (isInternLeader && target.squadron !== currentUser.squadron) return window.showToast("權限不足");
 
-            if (!true) return;
             try {
                 await updateDoc(doc(db, "students", uid), { password: '0000' });
                 window.showToast("密碼已重置為 0000");
@@ -3941,7 +3960,6 @@
             const target = studentsData.find(s => s.id === uid);
             if (isInternLeader && target.squadron !== currentUser.squadron) return window.showToast("權限不足");
 
-            if (!true) return;
             try {
                 await updateDoc(doc(db, "students", uid), { dorm: deleteField(), bed: deleteField() });
                 const s = studentsData.find(st => st.id === uid);
@@ -3958,47 +3976,24 @@
             if (!currentUser) return [];
             return pendingRequests.filter(req => {
                 if (req.status !== 'pending') return false;
-
                 const role = currentUser.role;
-
-                // 1. Super / General: All
                 if (role === 'super_admin' || role === 'general_admin') return true;
-
-                // 2. Battalion Admin
-                if (role === 'battalion_admin') {
-                    // Need to check target's squadron -> battalion
-                    return getBattalionFromSquadron(req.studentSquadron) === currentUser.managedBattalion;
-                }
-
-                // 3. Squadron Admin / Duty Class
-                if (role === 'squadron_admin' || role === 'duty_class') {
-                    return req.studentSquadron === currentUser.squadron;
-                }
-
-                // 4. District Admin
-                if (role === 'district_admin') {
-                    return currentUser.managedClasses && currentUser.managedClasses.includes(req.studentClass);
-                }
-
-                // 5. Class Admin roles
-                if (['class_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader'].includes(role)) {
-                    return req.studentClass === currentUser.class;
-                }
-
-                // 6. Group Admin (Dining Only)
+                if (role === 'battalion_admin') return getBattalionFromSquadron(req.studentSquadron) === currentUser.managedBattalion;
+                if (role === 'squadron_admin' || role === 'duty_class') return req.studentSquadron === currentUser.squadron;
+                if (role === 'district_admin') return currentUser.managedClasses && currentUser.managedClasses.includes(req.studentClass);
+                if (['class_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader'].includes(role)) return req.studentClass === currentUser.class;
                 if (role === 'group_admin') {
                     const isDining = (req.sessionName === '中午上餐廳' || req.sessionName === '晚上上餐廳');
                     if (isDining && req.studentGroup === currentUser.group) return true;
                 }
-
                 return false;
             });
         }
+
         function updateNotificationBadge() {
             const badge = document.getElementById('notificationBadge');
             const relevant = getRelevantRequests();
             const count = relevant.length;
-
             if (count > 0) {
                 badge.innerText = count;
                 badge.classList.remove('d-none');
@@ -4007,40 +4002,65 @@
             }
         }
 
-        // Hook updateNotificationBadge into renderAll/snapshot
-        // Actually better to hook where pendingRequests updates.
-        // I'll add a call to updateNotificationBadge inside the requests snapshot listener in the next step or manually add it here if I can find the listener.
-        // But wait, `renderAll` is called by the listener. So I can just add `updateNotificationBadge()` inside `renderAll`? 
-        // Yes, let's add it to `renderAll` or `updateAuthUI`. 
-        // Since `renderAll` is called frequently, let's put it there. 
-        // However, `renderAll` doesn't have access to this scope easily if strictly separated? 
-        // They are all in module scope. It's fine.
-
         window.showApprovalModal = () => {
+            refreshApprovalModal();
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('approvalModal')).show();
+        };
+
+        window.refreshApprovalModal = () => {
             const list = document.getElementById('approvalList');
             const relevant = getRelevantRequests();
 
-            const historyBtn = document.getElementById('historyBtn');
-            if (historyBtn) historyBtn.classList.remove('d-none');
-
-            // Refresh Filter Options
             const filterSel = document.getElementById('approvalClassFilter');
-            if (filterSel) {
-                const currentClassOrder = getDynamicClassOrder();
-                const currentGroupOrder = getDynamicGroupOrder();
-                filterSel.innerHTML = '<option value="all">顯示全部</option>' + 
-                    currentClassOrder.map(c => `<option value="${c}">${c}</option>`).join('') +
-                    currentGroupOrder.map(g => `<option value="${g}">${g}</option>`).join('');
+            const dayFilterSel = document.getElementById('approvalDayFilter');
+            const sessionFilterSel = document.getElementById('approvalSessionFilter');
+
+            if (filterSel && filterSel.options.length === 1) {
+                const dynamicClasses = getDynamicClassOrder();
+                const dynamicGroups = getDynamicGroupOrder();
+                const opts = [
+                    ...dynamicClasses.map(c => `<option value="${c}">${c}</option>`),
+                    ...dynamicGroups.map(g => `<option value="${g}">${g}</option>`)
+                ];
+                filterSel.innerHTML += opts.join('');
+                if (currentUser && currentUser.class) {
+                    const userClass = currentUser.class.trim();
+                    for (let i = 0; i < filterSel.options.length; i++) {
+                        if (filterSel.options[i].value === userClass) {
+                            filterSel.selectedIndex = i;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (dayFilterSel && dayFilterSel.options.length === 1) {
+                const rolling = typeof days !== 'undefined' ? days : getRollingDays();
+                dayFilterSel.innerHTML += rolling.map(d => {
+                    const label = getWeekDateLabel(d).replace(/<[^>]*>/g, ' '); 
+                    return `<option value="${d}">${label}</option>`;
+                }).join('');
+            }
+            if (sessionFilterSel && sessionFilterSel.options.length === 1) {
+                const allPossibleSessions = [...BASE_SESSIONS, "軍訓課第一節", "軍訓課第二節"];
+                sessionFilterSel.innerHTML += allPossibleSessions.map(s => `<option value="${s}">${s}</option>`).join('');
             }
 
             const filterVal = filterSel ? filterSel.value : 'all';
-            const filtered = relevant.filter(req => filterVal === 'all' || req.studentClass === filterVal || req.studentGroup === filterVal);
+            const dayFilterVal = dayFilterSel ? dayFilterSel.value : 'all';
+            const sessionFilterVal = sessionFilterSel ? sessionFilterSel.value : 'all';
+
+            const filtered = relevant.filter(req => {
+                const matchClass = (filterVal === 'all') || (req.studentClass === filterVal || req.studentGroup === filterVal);
+                const matchDay = (dayFilterVal === 'all') || (req.dayName === dayFilterVal);
+                const matchSession = (sessionFilterVal === 'all') || (req.sessionName === sessionFilterVal);
+                return matchClass && matchDay && matchSession;
+            });
 
             if (filtered.length === 0) {
                 list.innerHTML = `<div class="text-center p-4 text-muted">目前沒有待審核的申請</div>`;
             } else {
                 list.innerHTML = filtered.map(req => `
-            <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
                         <div>
                             <div class="d-flex align-items-center mb-1">
                                 <span class="fw-bold me-2">${req.studentName}</span>
@@ -4064,21 +4084,24 @@
                             </button>
                         </div>
                     </div>
-            `).join('');
+                `).join('');
             }
-            bootstrap.Modal.getOrCreateInstance(document.getElementById('approvalModal')).show();
         };
 
         window.batchHandleRequests = async (action) => {
             const relevant = getRelevantRequests();
-            const filterVal = document.getElementById('approvalClassFilter') ? document.getElementById('approvalClassFilter').value : 'all';
+            const filterVal = document.getElementById('approvalClassFilter').value;
+            const dayFilterVal = document.getElementById('approvalDayFilter').value;
+            const sessionFilterVal = document.getElementById('approvalSessionFilter').value;
 
-            // Only process currently visible keys
-            const toProcess = relevant.filter(req => filterVal === 'all' || req.studentClass === filterVal || req.studentGroup === filterVal);
+            const toProcess = relevant.filter(req => {
+                const matchClass = (filterVal === 'all') || (req.studentClass === filterVal || req.studentGroup === filterVal);
+                const matchDay = (dayFilterVal === 'all') || (req.dayName === dayFilterVal);
+                const matchSession = (sessionFilterVal === 'all') || (req.sessionName === sessionFilterVal);
+                return matchClass && matchDay && matchSession;
+            });
 
-            if (toProcess.length === 0) return window.showToast("目前與篩選條件相符的申請為空");
-
-            if (!true) return;
+            if (toProcess.length === 0) return window.showToast("目前沒有符合篩選的申請");
 
             try {
                 let count = 0;
@@ -4089,38 +4112,32 @@
                         studentClass: req.studentClass,
                         studentGroup: req.studentGroup || '',
                         dayName: req.dayName || '',
-                        sessionName: req.targetSession || req.sessionName,
+                        sessionName: req.sessionName || (req.targetSession && req.targetSession.includes('_') ? req.targetSession.split('_')[1] : req.targetSession),
                         originStatus: req.originStatus,
                         newStatus: req.newStatus,
                         requesterName: req.requesterName || '未知',
                         processorName: currentUser ? currentUser.name : '系統',
-                        requestTime: req.timestamp || new Date().toISOString(), // Include request time
+                        requestTime: req.timestamp || new Date().toISOString(),
                         action: action,
                         timestamp: new Date().toISOString()
                     });
-
                     if (action === 'approve') {
                         const studentRef = doc(db, "students", req.studentId);
-                        // Fix: Removed trailing space in key
                         await updateDoc(studentRef, { [`status.${req.targetSession}`]: req.newStatus });
                     }
                     await deleteDoc(doc(db, "requests", req.id));
                     count++;
                 }
-                // window.showToast("批量操作完成");
-                // refreshApprovalModal(); // Will be triggered by listener snapshot
+                window.showToast(`已批量處理 ${count} 筆申請`);
             } catch (e) {
                 console.error(e);
-                window.showToast("批量操作部分失敗: " + e.message);
+                window.showToast("操作部分失敗: " + e.message);
             }
         };
 
         window.handleRequest = async (reqId, action) => {
             const req = pendingRequests.find(r => r.id === reqId);
             if (!req) return;
-
-            if (!true) return;
-
             try {
                 await addDoc(collection(db, "approval_history"), {
                     studentId: req.studentId,
@@ -4128,107 +4145,110 @@
                     studentClass: req.studentClass,
                     studentGroup: req.studentGroup || '',
                     dayName: req.dayName || '',
-                    sessionName: req.targetSession || req.sessionName,
+                    sessionName: req.sessionName || (req.targetSession && req.targetSession.includes('_') ? req.targetSession.split('_')[1] : req.targetSession),
                     originStatus: req.originStatus,
                     newStatus: req.newStatus,
                     requesterName: req.requesterName || '未知',
                     processorName: currentUser ? currentUser.name : '系統',
-                    requestTime: req.timestamp || new Date().toISOString(), // Include request time
+                    requestTime: req.timestamp || new Date().toISOString(),
                     action: action,
                     timestamp: new Date().toISOString()
                 });
-
                 if (action === 'approve') {
-                    // 1. Update Student Data
                     const studentRef = doc(db, "students", req.studentId);
-                    // Fix: Removed trailing space in key
                     await updateDoc(studentRef, { [`status.${req.targetSession}`]: req.newStatus });
-
-                    // 2. Delete Request
-                    await deleteDoc(doc(db, "requests", reqId));
-                } else {
-                    // Reject: Just delete request
-                    await deleteDoc(doc(db, "requests", reqId));
                 }
+                await deleteDoc(doc(db, "requests", reqId));
             } catch (e) {
                 console.error(e);
                 window.showToast("操作失敗: " + e.message);
             }
         };
 
-        // Helper to refresh modal list if open
-        window.refreshApprovalModal = () => {
-            console.log("refreshApprovalModal called");
-            const modalEl = document.getElementById('approvalModal');
-            if (modalEl && modalEl.classList.contains('show')) {
-                // Re-use logic from showApprovalModal but only update list
-                const list = document.getElementById('approvalList');
-                const relevant = getRelevantRequests();
-
-                const filterSel = document.getElementById('approvalClassFilter');
-                // Ensure options populated (should be already)
-                if (filterSel && filterSel.options.length === 1) {
-                    const opts = [
-                        ...classOrder.map(c => `<option value="${c}">${c}</option>`),
-                        ...groupOrder.map(g => `<option value="${g}">${g}</option>`)
-                    ];
-                    filterSel.innerHTML += opts.join('');
-                }
-                const filterVal = filterSel ? filterSel.value : 'all';
-                console.log("Filter Value:", filterVal);
-
-                // Safe trim just in case of whitespace
-                const cleanFilterVal = filterVal.trim();
-
-                const filtered = relevant.filter(req => {
-                    if (cleanFilterVal === 'all') return true;
-                    // Check both class and group
-                    const sClass = (req.studentClass || '').trim();
-                    const sGroup = (req.studentGroup || '').trim();
-                    return sClass === cleanFilterVal || sGroup === cleanFilterVal;
-                });
-
-                if (filtered.length === 0) {
-                    list.innerHTML = `<div class="text-center p-4 text-muted">目前沒有待審核的申請</div>`;
-                } else {
-                    list.innerHTML = filtered.map(req => `
-            <div class="list-group-item d-flex justify-content-between align-items-center">
-                        <div>
-                            <div class="d-flex align-items-center mb-1">
-                                <span class="fw-bold me-2">${req.studentName}</span>
-                                <span class="badge bg-light text-secondary border me-2">${req.studentClass}/${req.studentGroup}</span>
-                                <span class="badge bg-warning text-dark">${req.dayName || ''} ${req.sessionName}</span>
-                            </div>
-                            <div class="small">
-                                <span class="text-muted">由 ${req.requesterName} 申請：</span>
-                                <span class="text-decoration-line-through text-muted mx-1">${req.originStatus}</span>
-                                <i class="bi bi-arrow-right mx-1"></i>
-                                <span class="fw-bold text-danger">${req.newStatus}</span>
-                            </div>
-                            <div class="text-muted" style="font-size: 0.75rem;">${new Date(req.timestamp).toLocaleString()}</div>
-                        </div>
-                        <div class="d-flex align-items-center">
-                            <button class="btn btn-success btn-sm me-2" onclick="handleRequest('${req.id}', 'approve')">
-                                <i class="bi bi-check-lg"></i> 批准
-                            </button>
-                            <button class="btn btn-outline-danger btn-sm" onclick="handleRequest('${req.id}', 'reject')">
-                                <i class="bi bi-x-lg"></i> 駁回
-                            </button>
-                        </div>
-                    </div>
-            `).join('');
-                }
-            }
-        };
-
         window.cancelRequest = async (reqId) => {
-            if (!true) return;
             try {
                 await deleteDoc(doc(db, "requests", reqId));
-                // UI updates via snapshot
             } catch (e) {
                 console.error(e);
                 window.showToast("取消失敗: " + e.message);
+            }
+        };
+
+        window.backfillHistory = async () => {
+            const cFilterVal = document.getElementById('historyClassFilter').value;
+            const dFilterVal = document.getElementById('historyDayFilter').value;
+            
+            const isGlobal = (cFilterVal === 'all');
+            const scopeText = isGlobal ? "「全體人員」所有日期、所有時段" : `「${cFilterVal}」目前的篩選條件`;
+
+            const confirmBackfill = await window.confirmAction("確認執行全局補登？", `系統將掃描 ${scopeText} 的現有差勤狀態。如果發現同學已有狀態但審核紀錄中不存在，將自動補齊紀錄。此操作可能需要一些時間。`, "開始補登", "btn-primary");
+            if (!confirmBackfill) return;
+
+            const targets = isGlobal ? studentsData : studentsData.filter(s => s.class === cFilterVal || s.group === cFilterVal);
+            const historyData = window._approvalHistoryData || [];
+            const toAdd = [];
+
+            // Define which days to scan
+            const rolling = typeof days !== 'undefined' ? days : getRollingDays();
+            const daysToScan = (dFilterVal === 'all') ? rolling : [dFilterVal];
+
+            targets.forEach(student => {
+                if (!student.status) return;
+                Object.entries(student.status).forEach(([key, val]) => {
+                    if (val === '實到' || val === '未知' || !val) return;
+                    
+                    const [day, sess] = key.includes('_') ? key.split('_') : [currentDay, key];
+                    if (!daysToScan.includes(day)) return;
+
+                    // Check if already exists in historyData (limited check to avoid expensive queries)
+                    const exists = historyData.some(h => 
+                        h.studentId === student.id && 
+                        h.dayName === day && 
+                        (h.sessionName === sess || h.sessionName === key) && 
+                        h.newStatus === val
+                    );
+
+                    if (!exists) {
+                        toAdd.push({
+                            studentId: student.id,
+                            studentName: student.name,
+                            studentClass: student.class || '未知',
+                            studentGroup: student.group || '',
+                            dayName: day,
+                            sessionName: sess,
+                            originStatus: "補登",
+                            newStatus: val,
+                            requesterName: "系統補登",
+                            processorName: currentUser ? currentUser.name : '系統',
+                            requestTime: new Date().toISOString(),
+                            action: 'approve',
+                            timestamp: new Date().toISOString(),
+                            method: 'backfill'
+                        });
+                    }
+                });
+            });
+
+            if (toAdd.length === 0) return window.showToast("目前沒有發現需要補登的缺失紀錄", "info");
+
+            try {
+                window.showToast(`正在處理 ${toAdd.length} 筆缺失紀錄...`, "info");
+                
+                // Process in chunks to avoid overwhelming Firestore
+                const batchSize = 25;
+                for (let i = 0; i < toAdd.length; i += batchSize) {
+                    const chunk = toAdd.slice(i, i + batchSize);
+                    await Promise.all(chunk.map(item => addDoc(collection(db, "approval_history"), item)));
+                    if (toAdd.length > 50) {
+                        window.showToast(`已完成 ${Math.min(i + batchSize, toAdd.length)} / ${toAdd.length}`, "info");
+                    }
+                }
+                
+                window.showToast(`成功！已全局補登 ${toAdd.length} 筆歷史紀錄。`);
+                showApprovalHistoryModal(); // Refresh UI
+            } catch (e) {
+                console.error(e);
+                window.showToast("補登過程中發生錯誤: " + e.message, "danger");
             }
         };
 
@@ -4237,45 +4257,99 @@
             const list = document.getElementById('approvalHistoryList');
             list.innerHTML = `<div class="text-center p-4 text-muted"><span class="spinner-border spinner-border-sm"></span> 載入紀錄中...</div>`;
 
+            const cFilter = document.getElementById('historyClassFilter');
+            const dFilter = document.getElementById('historyDayFilter');
+            const sFilter = document.getElementById('historySessionFilter');
+
+            if (cFilter.options.length === 1) {
+                const dynamicClasses = getDynamicClassOrder();
+                const dynamicGroups = getDynamicGroupOrder();
+                const opts = [
+                    ...dynamicClasses.map(c => `<option value="${c}">${c}</option>`),
+                    ...dynamicGroups.map(g => `<option value="${g}">${g}</option>`)
+                ];
+                cFilter.innerHTML += opts.join('');
+            }
+            if (dFilter.options.length === 1) {
+                const rolling = typeof days !== 'undefined' ? days : getRollingDays();
+                dFilter.innerHTML += rolling.map(d => {
+                    const label = getWeekDateLabel(d).replace(/<[^>]*>/g, ' '); 
+                    return `<option value="${d}">${label}</option>`;
+                }).join('');
+            }
+            if (sFilter.options.length === 1) {
+                const allSess = [...new Set([...BASE_SESSIONS, "軍訓課第一節", "軍訓課第二節"])];
+                sFilter.innerHTML = '<option value="all">所有時段</option>' + allSess.map(s => `<option value="${s}">${s}</option>`).join('');
+            }
+
             try {
-                // Fetch latest 50 records
-                const hq = query(collection(db, "approval_history"), orderBy("timestamp", "desc"), limit(50));
+                const hq = query(collection(db, "approval_history"), orderBy("timestamp", "desc"), limit(100));
                 const snap = await getDocs(hq);
-                let html = '';
-                if (snap.empty) {
-                    html = `<div class="text-center p-4 text-muted">目前沒有審核紀錄</div>`;
-                } else {
-                    snap.forEach(docSnap => {
-                        const data = docSnap.data();
-                        const timeStr = new Date(data.timestamp).toLocaleString();
-                        const actionBadge = data.action === 'approve' ? '<span class="badge bg-success">已批准</span>' : '<span class="badge bg-danger">已駁回</span>';
-                        html += `
-                        <div class="list-group-item">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <div>
-                                    <span class="fw-bold me-2">${data.studentName}</span>
-                                    <span class="badge bg-light text-secondary border me-2">${data.studentClass}/${data.studentGroup}</span>
-                                    <span class="badge bg-warning text-dark">${data.dayName || ''} ${data.sessionName}</span>
-                                </div>
-                                <div>${actionBadge}</div>
-                            </div>
-                            <div class="small">
-                                <span class="text-muted">由 <strong>${data.requesterName}</strong> 於 ${new Date(data.requestTime || data.timestamp).toLocaleString()} 申請：</span>
-                                <span class="text-decoration-line-through text-muted mx-1">${data.originStatus}</span>
-                                <i class="bi bi-arrow-right mx-1"></i>
-                                <span class="fw-bold text-dark">${data.newStatus}</span>
-                            </div>
-                            <div class="small text-muted mt-1">
-                                處理人: <strong>${data.processorName}</strong> 於 ${timeStr} 審核
-                            </div>
-                        </div>`;
-                    });
-                }
-                list.innerHTML = html;
+                window._approvalHistoryData = snap.docs.map(d => ({id: d.id, ...d.data()}));
+                renderApprovalHistory();
             } catch (e) {
                 console.error(e);
-                list.innerHTML = `<div class="text-center p-4 text-danger">載入失費</div>`;
+                list.innerHTML = `<div class="text-center p-4 text-danger">載入失敗</div>`;
             }
+        };
+
+        window.renderApprovalHistory = () => {
+            const list = document.getElementById('approvalHistoryList');
+            const data = window._approvalHistoryData || [];
+            
+            const cFilterVal = document.getElementById('historyClassFilter').value;
+            const dFilterVal = document.getElementById('historyDayFilter').value;
+            const sFilterVal = document.getElementById('historySessionFilter').value;
+
+            const filtered = data.filter(req => {
+                const sClass = (req.studentClass || '').trim();
+                const sGroup = (req.studentGroup || '').trim();
+                const fVal = cFilterVal.trim();
+                
+                const matchClass = (fVal === 'all') || (sClass === fVal || sGroup === fVal);
+                const matchDay = (dFilterVal === 'all') || (req.dayName === dFilterVal);
+                
+                // Robust session matching (handle both clean names and YYYY-MM-DD_SessionName)
+                let sName = req.sessionName || '';
+                if (sName.includes('_')) sName = sName.split('_')[1];
+                
+                const matchSession = (sFilterVal === 'all') || (sName === sFilterVal);
+                return matchClass && matchDay && matchSession;
+            });
+
+            if (filtered.length === 0) {
+                list.innerHTML = `<div class="text-center p-4 text-muted">目前沒有符合條件的紀錄</div>`;
+                return;
+            }
+
+            list.innerHTML = filtered.map(data => {
+                const timeStr = new Date(data.timestamp).toLocaleString();
+                const actionBadge = data.action === 'approve' ? '<span class="badge bg-success">已批准</span>' : '<span class="badge bg-danger">已駁回</span>';
+                
+                let displaySession = data.sessionName || '';
+                if (displaySession.includes('_')) displaySession = displaySession.split('_')[1];
+
+                return `
+                <div class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <div>
+                            <span class="fw-bold me-2">${data.studentName}</span>
+                            <span class="badge bg-light text-secondary border me-2">${data.studentClass}/${data.studentGroup}</span>
+                            <span class="badge bg-warning text-dark">${data.dayName || ''} ${displaySession}</span>
+                        </div>
+                        <div>${actionBadge}</div>
+                    </div>
+                    <div class="small">
+                        <span class="text-muted">由 <strong>${data.requesterName}</strong> 於 ${new Date(data.requestTime || data.timestamp).toLocaleString()} 申請：</span>
+                        <span class="text-decoration-line-through text-muted mx-1">${data.originStatus}</span>
+                        <i class="bi bi-arrow-right mx-1"></i>
+                        <span class="fw-bold text-dark">${data.newStatus}</span>
+                    </div>
+                    <div class="small text-muted mt-1">
+                        處理人: <strong>${data.processorName}</strong> 於 ${timeStr} 審核
+                    </div>
+                </div>`;
+            }).join('');
         };
 
         window.initLogin = (studentId, studentName) => {
@@ -5802,18 +5876,44 @@
                 } else {
                     // Direct Update Mode: Batch updateDocs
                     for (const targetId of targetIds) {
+                        const targetStudent = studentsData.find(s => s.id === targetId);
                         const statusUpdates = {};
+                        const historyPromises = [];
+                        
                         for (const day of selectedDays) {
                             for (const session of selectedSessions) {
                                 statusUpdates[`status.${day}_${session}`] = qsSelectedStatus;
+                                
+                                // Add to history
+                                if (targetStudent) {
+                                    historyPromises.push(addDoc(collection(db, "approval_history"), {
+                                        studentId: targetId,
+                                        studentName: targetStudent.name,
+                                        studentClass: targetStudent.class,
+                                        studentGroup: targetStudent.group || '',
+                                        dayName: day,
+                                        sessionName: session,
+                                        originStatus: "手動更新",
+                                        newStatus: qsSelectedStatus,
+                                        requesterName: currentUser.name,
+                                        processorName: currentUser.name,
+                                        requestTime: new Date().toISOString(),
+                                        action: 'approve',
+                                        timestamp: new Date().toISOString(),
+                                        method: 'direct_update'
+                                    }));
+                                }
                             }
                         }
                         updates.push(updateDoc(doc(db, "students", targetId), statusUpdates));
+                        if (historyPromises.length > 0) {
+                            updates.push(...historyPromises);
+                        }
                         successCount++;
                     }
 
                     await Promise.all(updates);
-                    window.showToast(`更新成功！共更新 ${successCount} 位同學。`);
+                    window.showToast(`更新成功！共更新 ${successCount} 位同學，並已記錄至審核歷史。`);
                 }
 
                 bootstrap.Modal.getOrCreateInstance(document.getElementById('quickStatusModal')).hide();
