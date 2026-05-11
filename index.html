@@ -4283,7 +4283,8 @@
             }
 
             try {
-                const hq = query(collection(db, "approval_history"), orderBy("timestamp", "desc"), limit(100));
+                // Fetch latest 1000 records to ensure global visibility and prevent duplicates during backfill
+                const hq = query(collection(db, "approval_history"), orderBy("timestamp", "desc"), limit(1000));
                 const snap = await getDocs(hq);
                 window._approvalHistoryData = snap.docs.map(d => ({id: d.id, ...d.data()}));
                 renderApprovalHistory();
