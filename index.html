@@ -1101,7 +1101,8 @@
             "實到", "病假", "事假", "公假", "喪假", "外診", "看護", "寢休", "補休", "伙委", "工委", "消委",
             "環委", "收尾", "洗委", "髮委", "勤學樓外掃", "文書", "美工", "大美", "升降旗", "檢寢", "陪檢", "廁所",
             "站哨", "軍樂", "軍儀", "校旗", "戰鼓", "熱音", "熱舞", "籃球", "巡水電", "校隊", "正課", "盥洗",
-            "電台", "外派", "區隊長公差", "壘球", "選手", "榮譽假", "提早假", "正常假", "隔離", "居家隔離", "業務", "排球", "降旗"
+            "電台", "外派", "區隊長公差", "壘球", "選手", "榮譽假", "提早假", "正常假", "隔離", "居家隔離", "業務", "排球", "降旗",
+            "主持人", "外散", "校外研習"
         ];
         let currentStatuses = [...DEFAULT_STATUSES];
 
@@ -1150,12 +1151,13 @@
                 scopes.push({ val: 'global', label: '全域預設' });
                 // Add all squadrons (which already includes management units)
                 squadronOrder.forEach(sq => scopes.push({ val: sq, label: sq }));
-            } else if (role === 'battalion_admin' && currentUser.managedBattalion) {
-                // Add all in battalion
-                squadronOrder.filter(sq => getBattalionFromSquadron(sq) === currentUser.managedBattalion)
+            } else if (role === 'battalion_admin' || (role && role.startsWith('intern_battalion_'))) {
+                // Battalion level: Add all in battalion
+                const batt = (currentUser.managedBattalion) ? currentUser.managedBattalion : (role && role.includes('一大隊') ? '一大隊' : (role && role.includes('二大隊') ? '二大隊' : '一大隊'));
+                squadronOrder.filter(sq => getBattalionFromSquadron(sq) === batt)
                     .forEach(sq => scopes.push({ val: sq, label: sq }));
-            } else if (['squadron_admin', 'duty_class', 'class_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader'].includes(role)) {
-                // User allowed cadres to edit their squadron settings too
+            } else if (['squadron_admin', 'duty_class', 'class_admin', 'district_admin'].includes(role) || (role && role.startsWith('intern_'))) {
+                // Squadron level cadres can edit their own squadron settings
                 if (currentUser.squadron) {
                     scopes.push({ val: currentUser.squadron, label: currentUser.squadron });
                 }
@@ -2272,13 +2274,16 @@
                 });
 
                 const specialEntries = Object.entries(breakdown);
+                let missionCount = 0;
+                specialEntries.forEach(([st, names]) => missionCount += names.length);
+
                 // Only show if there's SOMETHING to report (special statuses OR missing reports)
                 if (specialEntries.length > 0 || unreportedCount > 0) {
                     html += `
                         <div class="mb-2 p-2 rounded shadow-sm border-start border-4 border-primary bg-white bg-opacity-75">
                             <div class="d-flex justify-content-between align-items-center mb-1 border-bottom pb-1" style="border-color: rgba(0,0,0,0.05) !important;">
                                 <span class="fw-bold text-primary small"><i class="bi bi-clock me-1"></i>${session}</span>
-                                <span class="text-muted" style="font-size: 0.7rem;">實到: ${presentCount}/${students.length}</span>
+                                <span class="text-muted" style="font-size: 0.7rem;">應到：${students.length} | 實到：${presentCount} | 差勤：${missionCount}</span>
                             </div>
                             <div class="dashboard-breakdown">
                                 ${specialEntries.map(([status, names]) => `
@@ -2598,8 +2603,10 @@
         };
 
         window.addNewStatusType = async () => {
-            const internRoles = ['class_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader'];
-            if (!currentUser || !['super_admin', 'general_admin', ...internRoles, 'group_admin', 'squadron_admin', 'duty_class'].includes(currentUser.role)) return window.showToast("權限不足", 'warning');
+            const isIntern = currentUser && currentUser.role && currentUser.role.startsWith('intern_');
+            const isAuthorizedCadre = ['super_admin', 'general_admin', 'class_admin', 'group_admin', 'squadron_admin', 'duty_class', 'district_admin'].includes(currentUser.role);
+            
+            if (!currentUser || (!isIntern && !isAuthorizedCadre)) return window.showToast("權限不足", 'warning');
             
             const val = document.getElementById('newStatusInput').value.trim();
             if (!val) return;
@@ -2984,43 +2991,19 @@
         onSnapshot(statusConfigRef, (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                let needsUpdate = false;
                 
-                // [AUTO-FIX] Deduplicate and Remove Obsolete Statuses (Absent/Late)
-                const obsolete = ["缺席", "遲到"];
-                Object.keys(data).forEach(key => {
-                    if (Array.isArray(data[key])) {
-                        let processed = Array.from(new Set(data[key].map(s => String(s).trim()))).filter(s => s !== '' && !obsolete.includes(s));
-                        if (processed.length !== data[key].length) {
-                            data[key] = processed;
-                            needsUpdate = true;
-                        }
-                    }
-                });
+                // [DEPRECATED] Auto-fix and deduplicate moved to write-time to avoid race conditions
                 
-                // [AUTO-FIX] Seed Management Levels with requested custom statuses
-                const mgmtUnits = ["一校長官", "二校長官"];
-                const requiredMgmtStatuses = ["實到", "病假", "事假", "公假", "值星", "任務", "休假", "留守"];
-                mgmtUnits.forEach(unit => {
-                    // If unit config doesn't exist, OR it's missing '實到' (meaning it suffered from the overwrite bug)
-                    if (!data[unit] || !data[unit].includes("實到")) {
-                        const existing = data[unit] || [];
-                        const merged = Array.from(new Set([...requiredMgmtStatuses, ...existing]));
-                        data[unit] = merged;
-                        needsUpdate = true;
-                    }
-                });
-                
-                if (needsUpdate) {
-                    setDoc(statusConfigRef, data, { merge: true });
-                }
-
                 statusConfigCache = data;
-                // Ensure global exists
-                if (!statusConfigCache["global"]) statusConfigCache["global"] = [...DEFAULT_STATUSES];
+                
+                // [SYNC] Ensure all DEFAULT_STATUSES are present in the global config
+                const existingGlobal = statusConfigCache["global"] || [];
+                const mergedGlobal = Array.from(new Set([...DEFAULT_STATUSES, ...existingGlobal])).filter(s => s && s.trim() !== "");
+                
+                statusConfigCache["global"] = mergedGlobal;
                 
                 // Keep global currentStatuses in sync for general UI
-                currentStatuses = statusConfigCache["global"];
+                currentStatuses = mergedGlobal;
                 
                 // [REMOVED] Weekly Auto Reset (Sunday 08:00) removed as requested
             } else {
@@ -3130,9 +3113,9 @@
                 // Admin detection based on role type or squadron
                 const isGlobalAdmin = ['super_admin', 'general_admin'].includes(currentUser.role);
                 const isMgmtUser = (currentUser.squadron && isManagementUnit(currentUser.squadron)) || currentUser.role === 'management_cadre';
-                const isInternAdmin = ['class_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader', 'district_admin'].includes(currentUser.role);
+                const isInternAdmin = (currentUser.role && currentUser.role.startsWith('intern_')) || ['class_admin', 'district_admin'].includes(currentUser.role);
                 
-                isAdmin = isGlobalAdmin || isMgmtUser || isInternAdmin || (currentUser.role === 'group_admin');
+                isAdmin = isGlobalAdmin || isMgmtUser || isInternAdmin || (currentUser.role === 'group_admin') || (currentUser.role === 'duty_class') || (currentUser.role === 'squadron_admin');
 
                 userNameDisplay.innerHTML = `${currentUser.name} <span class="badge bg-secondary ms-1" style="font-size: 0.7em;">${roleName}</span>`;
 
@@ -3165,7 +3148,7 @@
                 // Control Master Action Button visibility
                 const masterActionButton = document.getElementById('masterActionButton');
                 if (masterActionButton) {
-                    const canManage = currentUser.role === 'super_admin' || currentUser.role === 'general_admin' || ['class_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader', 'district_admin'].includes(currentUser.role);
+                    const canManage = isGlobalAdmin || isMgmtUser || isInternAdmin || (currentUser.role === 'squadron_admin') || (currentUser.role === 'duty_class');
                     masterActionButton.classList.toggle('d-none', !canManage);
                 }
 
@@ -3173,10 +3156,10 @@
                 const bulkBtn = document.getElementById('bulkRenameBtn');
                 if (bulkBtn) {
                     const isFullAdmin = ['super_admin', 'general_admin'].includes(currentUser.role);
-                    const isSquadronLeader = ['intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role);
-                    const isClassLeader = (currentUser.role === 'intern_class_leader'); // class_admin is read-only now
+                    const isIntern = (currentUser.role && currentUser.role.startsWith('intern_'));
+                    const isCadre = ['class_admin', 'squadron_admin', 'district_admin', 'duty_class'].includes(currentUser.role);
                     
-                    if (isFullAdmin || isSquadronLeader || isClassLeader) bulkBtn.classList.remove('d-none');
+                    if (isFullAdmin || isIntern || isCadre) bulkBtn.classList.remove('d-none');
                     else bulkBtn.classList.add('d-none');
                 }
 
@@ -5770,17 +5753,13 @@
             const allPossibleSessions = [...BASE_SESSIONS, "軍訓課第一節", "軍訓課第二節"];
             sessionContainer.innerHTML = allPossibleSessions.map(s => {
                 const isChecked = (s === currentSession) ? 'checked' : '';
-                // [NEW] Group Admin restriction
-                let disabledAttr = '';
                 let labelExtra = '';
-                if (currentUser.role === 'group_admin' && s !== '中午上餐廳') {
-                    disabledAttr = 'disabled';
-                    labelExtra = ' <small class="text-muted">(限區隊/班級幹部)</small>';
-                }
+                // [REMOVED] Group Admin restriction here to allow them to select all sessions for themselves
+                // The validation for "others" is handled in submitQuickStatus
                 
                 return `
                     <div class="form-check form-check-inline mb-2">
-                        <input class="form-check-input" type="checkbox" name="qsSession" value="${s}" id="qsSession_${s}" ${isChecked} ${disabledAttr}>
+                        <input class="form-check-input" type="checkbox" name="qsSession" value="${s}" id="qsSession_${s}" ${isChecked}>
                         <label class="form-check-label" for="qsSession_${s}">${s}${labelExtra}</label>
                     </div>
                 `;
@@ -6742,9 +6721,12 @@
                     }
                 });
 
+                let missionCount = 0;
+                Object.values(sessGrouped).forEach(names => missionCount += names.length);
+
                 // [RESTORED] Stats for regular units
                 const isOfficerUnit = targetUnit && targetUnit.includes('長官');
-                const statsDisplayHtml = isOfficerUnit ? '' : `<span class="text-muted" style="font-size: 0.75rem;">應到：${squadronStudents.length} | 實到：${sessPresentCount}</span>`;
+                const statsDisplayHtml = isOfficerUnit ? '' : `<span class="text-muted" style="font-size: 0.75rem;">應到：${squadronStudents.length} | 實到：${sessPresentCount} | 差勤：${missionCount}</span>`;
                 
                 html += `
                     <div class="col-12">
