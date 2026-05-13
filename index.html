@@ -2254,8 +2254,7 @@
                 const statusKey = `${day}_${session}`;
                 const breakdown = {};
                 let presentCount = 0;
-                let unreportedCount = 0;
-                
+                const unreportedNames = [];
                 students.forEach(s => {
                     let status = s.status && s.status[statusKey] ? stripStatusHtml(s.status[statusKey]) : "";
                     if (!status) {
@@ -2266,6 +2265,7 @@
                     if (status === '實到') {
                         presentCount++;
                     } else if (!status || status === '未報' || status === '未填') {
+                        unreportedNames.push(s.name);
                         unreportedCount++;
                     } else {
                         if (!breakdown[status]) breakdown[status] = [];
@@ -2293,8 +2293,8 @@
                                     </div>
                                 `).join('')}
                                 ${unreportedCount > 0 ? `
-                                    <div class="small text-muted py-1 mt-1 border-top border-dashed" style="font-size: 0.7rem; border-color: #ffe4e1 !important;">
-                                        <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>尚有 ${unreportedCount} 員未填
+                                    <div class="small text-danger py-1 mt-1 border-top border-dashed" style="font-size: 0.7rem; border-color: #ffe4e1 !important;">
+                                        <i class="bi bi-exclamation-triangle-fill me-1"></i>尚有 ${unreportedCount} 員未填：${unreportedNames.join('、')}
                                     </div>
                                 ` : ''}
                             </div>
@@ -6701,14 +6701,18 @@
             sessions.forEach(sess => {
                 const sk = `${currentDay}_${sess}`;
                 const sessGrouped = {};
-                const unreportedNames = [];
+                const unreportedByClass = {};
+                let unreportedCount = 0;
                 let sessPresentCount = 0;
                 
                 squadronStudents.forEach(s => {
-                    // Check if status exists for this session
+                    const sk = `${currentDay}_${sess}`;
                     const rawStatus = (s.status && s.status[sk]);
                     if (!rawStatus) {
-                        unreportedNames.push(currentUser ? s.name : "🔒");
+                        const className = s.class || "未知";
+                        if (!unreportedByClass[className]) unreportedByClass[className] = [];
+                        unreportedByClass[className].push(currentUser ? s.name : "🔒");
+                        unreportedCount++;
                         return;
                     }
                     
@@ -6748,11 +6752,16 @@
                                     `).join('')}
                                     
                                     <!-- 2. Show Unreported (If any, grouped by class) -->
-                                    ${unreportedNames.length > 0 ? `
-                                        <div class="mt-1 p-1 rounded-3 text-center" style="background: #fff5f5; border: 1px dashed #feb2b2;">
-                                            <div class="fw-bold text-danger" style="font-size: 0.85rem;">
-                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>尚有 ${unreportedNames.length} 員沒報差勤
+                                    ${unreportedCount > 0 ? `
+                                        <div class="mt-1 p-2 rounded-3" style="background: #fff5f5; border: 1px dashed #feb2b2;">
+                                            <div class="fw-bold text-danger mb-1" style="font-size: 0.85rem;">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>尚有 ${unreportedCount} 員沒報差勤
                                             </div>
+                                            ${Object.entries(unreportedByClass).map(([cls, names]) => `
+                                                <div class="text-danger small" style="font-size: 0.75rem;">
+                                                    <span class="fw-bold">${cls}：</span>${names.join('、')}
+                                                </div>
+                                            `).join('')}
                                         </div>
                                     ` : (!targetUnit.includes('長官') && squadronStudents.length > 0 ? `
                                         <div class="text-center py-2">
