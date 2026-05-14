@@ -2254,6 +2254,7 @@
                 const statusKey = `${day}_${session}`;
                 const breakdown = {};
                 let presentCount = 0;
+                let unreportedCount = 0;
                 const unreportedNames = [];
                 students.forEach(s => {
                     let status = s.status && s.status[statusKey] ? stripStatusHtml(s.status[statusKey]) : "";
