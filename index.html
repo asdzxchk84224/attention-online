@@ -1093,7 +1093,7 @@
 
         let currentGroupMode = sessionStorage.getItem('currentGroupMode') || "class";
         if (currentGroupMode === 'squadron') currentGroupMode = 'class';
-        let currentSquadron = sessionStorage.getItem('currentSquadron') || (currentUser && currentUser.squadron ? currentUser.squadron : "一大一中");
+        let currentSquadron = localStorage.getItem('preferredSquadron') || sessionStorage.getItem('currentSquadron') || (currentUser && currentUser.squadron ? currentUser.squadron : "一大一中");
 
         // Status Configuration
         // Default global fallback
@@ -1709,6 +1709,7 @@
             
             currentSquadron = sq;
             sessionStorage.setItem('currentSquadron', sq);
+            localStorage.setItem('preferredSquadron', sq); // Persistent memory
             
             const displayEl = document.getElementById('currentSquadronDisplay');
             if (displayEl) displayEl.textContent = sq;
