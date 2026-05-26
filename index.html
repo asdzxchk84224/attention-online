@@ -826,9 +826,9 @@
                         <i class="bi bi-clock-history"></i>
                     </button>
                     <div class="ms-auto d-flex align-items-center">
-                        <button class="btn btn-success btn-sm me-1 px-2"
+                        <button id="batchApproveBtn" class="btn btn-success btn-sm me-1 px-2"
                             onclick="batchHandleRequests('approve')">全批</button>
-                        <button class="btn btn-danger btn-sm px-2" onclick="batchHandleRequests('reject')">全駁</button>
+                        <button id="batchRejectBtn" class="btn btn-danger btn-sm px-2" onclick="batchHandleRequests('reject')">全駁</button>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
@@ -1102,7 +1102,7 @@
             "環委", "收尾", "洗委", "髮委", "勤學樓外掃", "文書", "美工", "大美", "升降旗", "檢寢", "陪檢", "廁所",
             "站哨", "軍樂", "軍儀", "校旗", "戰鼓", "熱音", "熱舞", "籃球", "巡水電", "校隊", "正課", "盥洗",
             "電台", "外派", "區隊長公差", "壘球", "選手", "榮譽假", "提早假", "正常假", "隔離", "居家隔離", "業務", "排球", "降旗",
-            "主持人", "外散", "校外研習"
+            "主持人", "外散", "校外研習", "早鳥班"
         ];
         let currentStatuses = [...DEFAULT_STATUSES];
 
@@ -1270,7 +1270,7 @@
                         const names = (stats.byStudents && stats.byStudents[status]) 
                             ? stats.byStudents[status].map(s => s.name)
                             : (stats.byStatusNames ? stats.byStatusNames[status] : []);
-                        const displayStatus = (status === "" || !status) ? "未報" : status;
+                        const displayStatus = (status === "" || !status) ? "實到" : status;
                         text += `${displayStatus}：${count} (${names.join('、')})\n`;
                     });
                 }
@@ -1934,10 +1934,8 @@
                     // Use Composite Key
                     const statusKey = getStatusKey(currentSession);
                     
-                    // [NEW] Default logic: Only School Officers default to '實到'. 
-                    // Everyone else (students/interns) is BLANK until explicitly reported.
-                    const isOfficer = student.squadron && student.squadron.includes('校長官');
-                    let status = isOfficer ? "實到" : ""; 
+                    // [NEW] Default logic: Everyone is '實到' if not reported.
+                    let status = "實到"; 
                     
                     if (student.status && student.status[statusKey]) {
                         status = student.status[statusKey];
@@ -2059,11 +2057,22 @@
                                 } else if (currentUser.role === 'intern_battalion_hq') {
                                     canEdit = false; // Read-only
                                     canDelete = false;
-                                } else if (['intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po'].includes(currentUser.role)) {
-                                    // Squadron-level intern leaders can edit everyone in their squadron
+                                } else if (['intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'squadron_admin', 'duty_class'].includes(currentUser.role)) {
+                                    // Squadron-level leaders can edit everyone in their squadron
                                     if (currentUser.squadron === student.squadron) {
                                         canEdit = true;
                                         canDelete = true;
+                                    }
+                                } else if (['intern_battalion_leader', 'intern_deputy_battalion_leader', 'intern_battalion_po', 'battalion_admin'].includes(currentUser.role)) {
+                                    // Battalion leaders can edit everyone in their battalion
+                                    if (getBattalionFromSquadron(currentUser.squadron) === getBattalionFromSquadron(student.squadron) || 
+                                        (currentUser.managedBattalion && currentUser.managedBattalion === getBattalionFromSquadron(student.squadron))) {
+                                        canEdit = true;
+                                    }
+                                } else if (currentUser.role === 'district_admin') {
+                                    // District admin can edit their managed classes
+                                    if (currentUser.managedClasses && currentUser.managedClasses.includes(student.class)) {
+                                        canEdit = true;
                                     }
                                 } else if (['class_admin', 'intern_class_leader'].includes(currentUser.role)) {
                                     // Class-level cadres only edit their own class
@@ -2084,9 +2093,14 @@
                                     if (student.squadron === currentUser.squadron) {
                                         canEdit = true;
                                         canDelete = false; // Only Super Admin can delete management
+                                    } else if (currentUser.id === student.id) {
+                                        canEdit = true; // Still allow self-edit if they look at themselves somewhere else
                                     }
-                                } else if (currentUser.role === 'student') {
-                                    if (currentUser.id === student.id) canEdit = true;
+                                }
+                                
+                                // Everyone can at least edit themselves (unless explicitly forbidden, but currently everyone should be able to report own attendance)
+                                if (currentUser.id === student.id) {
+                                    canEdit = true;
                                 }
                             } else { // not logged in
                                 if (currentUser && currentUser.id === student.id) canEdit = true;
@@ -2203,7 +2217,7 @@
                                         </div>
                                         <div class="d-flex flex-column align-items-end">
                                             <div class="d-flex align-items-center mb-1">
-                                                ${isMgmtSq ? '' : `
+                                                ${(isMgmtSq || !currentUser) ? '' : `
                                                     <button class="btn btn-sm btn-light py-0 px-2 me-1 border text-success fw-bold" style="font-size: 0.75rem;" onclick="openClassDashboard('${groupName}')">
                                                         <i class="bi bi-graph-up"></i> 看板
                                                     </button>
@@ -2260,8 +2274,7 @@
                 students.forEach(s => {
                     let status = s.status && s.status[statusKey] ? stripStatusHtml(s.status[statusKey]) : "";
                     if (!status) {
-                         const isOfficer = s.squadron && s.squadron.includes('校長官');
-                         status = isOfficer ? "實到" : "";
+                         status = "實到";
                     }
                     
                     if (status === '實到') {
@@ -2905,11 +2918,11 @@
 
                 if (scope === 'current') {
                     const key = `${currentDay}_${currentSession}`;
-                    const targetStatus = isOfficer ? "實到" : "";
-                    const currentStatus = (s.status && s.status[key]) ? stripStatusHtml(s.status[key]) : (isOfficer ? "實到" : "");
+                    const targetStatus = "實到";
+                    const currentStatus = (s.status && s.status[key]) ? stripStatusHtml(s.status[key]) : "實到";
 
                     if (currentStatus !== targetStatus) {
-                        updates[`status.${key}`] = targetStatus === "" ? deleteField() : targetStatus;
+                        updates[`status.${key}`] = deleteField();
                     }
                     
                     const reqToDelete = relevantRequests.find(r => r.targetSession === key);
@@ -2919,9 +2932,8 @@
                 } else {
                     sessions.forEach(sess => {
                         const key = `${currentDay}_${sess}`;
-                        const isOfficer = s.squadron && s.squadron.includes('校長官');
-                        const targetStatus = isOfficer ? "實到" : "";
-                        const currentStatus = (s.status && s.status[key]) ? stripStatusHtml(s.status[key]) : (isOfficer ? "實到" : "");
+                        const targetStatus = "實到";
+                        const currentStatus = (s.status && s.status[key]) ? stripStatusHtml(s.status[key]) : "實到";
 
                         if (currentStatus !== targetStatus) {
                             updates[`status.${key}`] = deleteField();
@@ -3059,9 +3071,8 @@
                     let hasChange = false;
                     
                     sessionKeys.forEach(key => {
-                        const isOfficer = student.squadron && student.squadron.includes('校長官');
-                        const targetStatus = isOfficer ? "實到" : "";
-                        const currentStatusRaw = (student.status && student.status[key]) ? student.status[key] : (isOfficer ? "實到" : "");
+                        const targetStatus = "實到";
+                        const currentStatusRaw = (student.status && student.status[key]) ? student.status[key] : "實到";
                         const currentStatus = stripStatusHtml(currentStatusRaw);
 
                         if (currentStatus !== targetStatus) {
@@ -3129,12 +3140,8 @@
                 const liveDashboardBtn = document.getElementById('liveDashboardBtn');
                 if (liveDashboardBtn) liveDashboardBtn.classList.toggle('d-none', !isDashboardAuthorized);
 
-                if (isAdmin) {
-                    notificationBtn.classList.remove('d-none');
-                    updateNotificationBadge();
-                } else {
-                    notificationBtn.classList.add('d-none');
-                }
+                notificationBtn.classList.remove('d-none');
+                updateNotificationBadge();
 
                 if (isAdmin) adminManageLink.classList.remove('d-none');
                 else adminManageLink.classList.add('d-none');
@@ -4035,21 +4042,27 @@
             }
         };
 
+        window.canApproveRequest = function(req, user) {
+            if (!user) return false;
+            const role = user.role;
+            if (role === 'super_admin' || role === 'general_admin') return true;
+            if (role === 'battalion_admin') return getBattalionFromSquadron(req.studentSquadron) === user.managedBattalion;
+            if (role === 'squadron_admin' || role === 'duty_class') return req.studentSquadron === user.squadron;
+            if (role === 'district_admin') return user.managedClasses && user.managedClasses.includes(req.studentClass);
+            if (['class_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader'].includes(role)) return req.studentClass === user.class;
+            if (role === 'group_admin') {
+                const isDining = (req.sessionName === '中午上餐廳' || req.sessionName === '晚上上餐廳');
+                if (isDining && req.studentGroup === user.group) return true;
+            }
+            return false;
+        };
+
         function getRelevantRequests() {
             if (!currentUser) return [];
             return pendingRequests.filter(req => {
                 if (req.status !== 'pending') return false;
-                const role = currentUser.role;
-                if (role === 'super_admin' || role === 'general_admin') return true;
-                if (role === 'battalion_admin') return getBattalionFromSquadron(req.studentSquadron) === currentUser.managedBattalion;
-                if (role === 'squadron_admin' || role === 'duty_class') return req.studentSquadron === currentUser.squadron;
-                if (role === 'district_admin') return currentUser.managedClasses && currentUser.managedClasses.includes(req.studentClass);
-                if (['class_admin', 'intern_squadron_leader', 'intern_deputy_squadron_leader', 'intern_po', 'intern_class_leader'].includes(role)) return req.studentClass === currentUser.class;
-                if (role === 'group_admin') {
-                    const isDining = (req.sessionName === '中午上餐廳' || req.sessionName === '晚上上餐廳');
-                    if (isDining && req.studentGroup === currentUser.group) return true;
-                }
-                return false;
+                if (req.studentId === currentUser.id) return true;
+                return window.canApproveRequest(req, currentUser);
             });
         }
 
@@ -4073,10 +4086,24 @@
         window.refreshApprovalModal = () => {
             const list = document.getElementById('approvalList');
             const relevant = getRelevantRequests();
+            
+            const isGlobalAdmin = ['super_admin', 'general_admin'].includes(currentUser.role);
+            const isMgmtUser = (currentUser.squadron && isManagementUnit(currentUser.squadron)) || currentUser.role === 'management_cadre';
+            const isInternAdmin = (currentUser.role && currentUser.role.startsWith('intern_')) || ['class_admin', 'district_admin'].includes(currentUser.role);
+            const isAdmin = isGlobalAdmin || isMgmtUser || isInternAdmin || (currentUser.role === 'group_admin') || (currentUser.role === 'duty_class') || (currentUser.role === 'squadron_admin');
 
             const filterSel = document.getElementById('approvalClassFilter');
             const dayFilterSel = document.getElementById('approvalDayFilter');
             const sessionFilterSel = document.getElementById('approvalSessionFilter');
+            
+            if (filterSel) filterSel.classList.toggle('d-none', !isAdmin);
+            if (dayFilterSel) dayFilterSel.classList.toggle('d-none', !isAdmin);
+            if (sessionFilterSel) sessionFilterSel.classList.toggle('d-none', !isAdmin);
+            
+            const batchApproveBtn = document.getElementById('batchApproveBtn');
+            const batchRejectBtn = document.getElementById('batchRejectBtn');
+            if (batchApproveBtn) batchApproveBtn.classList.toggle('d-none', !isAdmin);
+            if (batchRejectBtn) batchRejectBtn.classList.toggle('d-none', !isAdmin);
 
             if (filterSel && filterSel.options.length === 1) {
                 const dynamicClasses = getDynamicClassOrder();
@@ -4139,12 +4166,17 @@
                             <div class="text-muted" style="font-size: 0.75rem;">${new Date(req.timestamp).toLocaleString()}</div>
                         </div>
                         <div class="d-flex align-items-center">
+                            ${window.canApproveRequest(req, currentUser) ? `
                             <button class="btn btn-success btn-sm me-2" onclick="handleRequest('${req.id}', 'approve')">
                                 <i class="bi bi-check-lg"></i> 批准
                             </button>
                             <button class="btn btn-outline-danger btn-sm" onclick="handleRequest('${req.id}', 'reject')">
                                 <i class="bi bi-x-lg"></i> 駁回
                             </button>
+                            ` : `
+                            <span class="badge bg-secondary me-2">審核中</span>
+                            <button class="btn btn-outline-danger btn-sm" onclick="cancelRequest('${req.id}')">取消申請</button>
+                            `}
                         </div>
                     </div>
                 `).join('');
@@ -4169,6 +4201,8 @@
             try {
                 let count = 0;
                 for (const req of toProcess) {
+                    if (!window.canApproveRequest(req, currentUser)) continue;
+
                     await addDoc(collection(db, "approval_history"), {
                         studentId: req.studentId,
                         studentName: req.studentName,
@@ -4201,6 +4235,7 @@
         window.handleRequest = async (reqId, action) => {
             const req = pendingRequests.find(r => r.id === reqId);
             if (!req) return;
+            if (!window.canApproveRequest(req, currentUser)) return window.showToast("權限不足，無法審核", "warning");
             try {
                 await addDoc(collection(db, "approval_history"), {
                     studentId: req.studentId,
@@ -4229,6 +4264,9 @@
         };
 
         window.cancelRequest = async (reqId) => {
+            const req = pendingRequests.find(r => r.id === reqId);
+            if (!req) return;
+            if (req.studentId !== currentUser.id && !window.canApproveRequest(req, currentUser)) return window.showToast("權限不足", "warning");
             try {
                 await deleteDoc(doc(db, "requests", reqId));
             } catch (e) {
@@ -4320,9 +4358,18 @@
             const list = document.getElementById('approvalHistoryList');
             list.innerHTML = `<div class="text-center p-4 text-muted"><span class="spinner-border spinner-border-sm"></span> 載入紀錄中...</div>`;
 
+            const isGlobalAdmin = ['super_admin', 'general_admin'].includes(currentUser.role);
+            const isMgmtUser = (currentUser.squadron && isManagementUnit(currentUser.squadron)) || currentUser.role === 'management_cadre';
+            const isInternAdmin = (currentUser.role && currentUser.role.startsWith('intern_')) || ['class_admin', 'district_admin'].includes(currentUser.role);
+            const isAdmin = isGlobalAdmin || isMgmtUser || isInternAdmin || (currentUser.role === 'group_admin') || (currentUser.role === 'duty_class') || (currentUser.role === 'squadron_admin');
+
             const cFilter = document.getElementById('historyClassFilter');
             const dFilter = document.getElementById('historyDayFilter');
             const sFilter = document.getElementById('historySessionFilter');
+
+            if (cFilter) cFilter.classList.toggle('d-none', !isAdmin);
+            if (dFilter) dFilter.classList.toggle('d-none', !isAdmin);
+            if (sFilter) sFilter.classList.toggle('d-none', !isAdmin);
 
             if (cFilter.options.length === 1) {
                 const dynamicClasses = getDynamicClassOrder();
@@ -4380,7 +4427,13 @@
             const dFilterVal = document.getElementById('historyDayFilter').value;
             const sFilterVal = document.getElementById('historySessionFilter').value;
 
+            const isGlobalAdmin = ['super_admin', 'general_admin'].includes(currentUser.role);
+            const isMgmtUser = (currentUser.squadron && isManagementUnit(currentUser.squadron)) || currentUser.role === 'management_cadre';
+            const isInternAdmin = (currentUser.role && currentUser.role.startsWith('intern_')) || ['class_admin', 'district_admin'].includes(currentUser.role);
+            const isAdmin = isGlobalAdmin || isMgmtUser || isInternAdmin || (currentUser.role === 'group_admin') || (currentUser.role === 'duty_class') || (currentUser.role === 'squadron_admin');
+
             const filtered = data.filter(req => {
+                if (!isAdmin && req.studentId !== currentUser.id) return false;
                 const sClass = (req.studentClass || '').trim();
                 const sGroup = (req.studentGroup || '').trim();
                 const fVal = cFilterVal.trim();
@@ -4580,7 +4633,7 @@
             const p = document.getElementById('adminPassword').value;
 
             const admins = [
-                { u: 'admin', p: '!QAZ2wsx3edc4rfv', name: '管理員', role: 'super_admin', squadron: '管理階層' },
+                { u: 'admin', p: 'putiko40@', name: '管理員', role: 'super_admin', squadron: '管理階層' },
                 { u: '2-1', p: 'QAZwsx', name: '值星幹部', role: 'general_admin', customRoleTitle: '值星幹部', squadron: '二大一中' }
             ];
 
@@ -4715,7 +4768,7 @@
                 if (savedPass) {
                     currentPass = savedPass;
                 } else {
-                    if (currentUser.id === 'admin_admin_id') currentPass = '!QAZ2wsx3edc4rfv';
+                    if (currentUser.id === 'admin_admin_id') currentPass = 'putiko40@';
                     if (currentUser.id === '2-1_admin_id') currentPass = 'QAZwsx';
                 }
             }
@@ -4871,7 +4924,7 @@
                     if (savedPass) {
                         currentPass = savedPass;
                     } else {
-                        if (currentUser.id === 'admin_admin_id') currentPass = '!QAZ2wsx3edc4rfv';
+                        if (currentUser.id === 'admin_admin_id') currentPass = 'putiko40@';
                         if (currentUser.id === '2-1_admin_id') currentPass = 'QAZwsx';
                     }
                 }
